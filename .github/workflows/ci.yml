@@ -1,0 +1,90 @@
+name: PixieEditor installed-SDK build
+
+on:
+  workflow_dispatch:
+    inputs:
+      sdk_repository:
+        description: Repository that owns the trusted public SDK artifact
+        required: true
+        type: string
+      sdk_run:
+        description: Workflow run that produced the SDK artifact
+        required: true
+        type: string
+      sdk_artifact:
+        description: Artifact with the Engine SDK ZIP and release.json
+        required: true
+        type: string
+        default: pixie-engine-release-candidates-windows-x64
+      sdk_archive_sha256:
+        description: Trusted SHA-256 of the Engine SDK ZIP
+        required: true
+        type: string
+      sdk_catalog_sha256:
+        description: Trusted SHA-256 of sdk.json
+        required: true
+        type: string
+      inspector_repository:
+        description: Repository that owns the approved Inspector package artifact
+        required: true
+        type: string
+      inspector_run:
+        description: Approved workflow run containing the locked Inspector pair
+        required: true
+        type: string
+      inspector_artifact:
+        description: Artifact with both 0.3.0-pixie021.3 nupkg files at the root
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  editor:
+    runs-on: windows-2025
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Download Engine release inputs
+        uses: actions/download-artifact@v4
+        with:
+          github-token: ${{ secrets.PIXIE_SDK_ARTIFACT_TOKEN }}
+          repository: ${{ inputs.sdk_repository }}
+          run-id: ${{ inputs.sdk_run }}
+          name: ${{ inputs.sdk_artifact }}
+          path: ${{ runner.temp }}/pixie-engine-assets
+      - name: Download the approved Inspector pair
+        uses: actions/download-artifact@v4
+        with:
+          github-token: ${{ secrets.PIXIE_SDK_ARTIFACT_TOKEN }}
+          repository: ${{ inputs.inspector_repository }}
+          run-id: ${{ inputs.inspector_run }}
+          name: ${{ inputs.inspector_artifact }}
+          path: ${{ runner.temp }}/pixie-inspector
+      - name: Verify inputs and assemble the Editor candidate
+        shell: pwsh
+        env:
+          PIXIE_SDK_ARCHIVE_SHA256: ${{ inputs.sdk_archive_sha256 }}
+          PIXIE_SDK_CATALOG_SHA256: ${{ inputs.sdk_catalog_sha256 }}
+        run: |
+          python -B eng/rehearse-release.py `
+            --engine-assets (Join-Path $env:RUNNER_TEMP 'pixie-engine-assets') `
+            --sdk-archive-sha256 $env:PIXIE_SDK_ARCHIVE_SHA256 `
+            --sdk-catalog-sha256 $env:PIXIE_SDK_CATALOG_SHA256 `
+            --inspector-feed (Join-Path $env:RUNNER_TEMP 'pixie-inspector') `
+            --out (Join-Path $env:RUNNER_TEMP 'pixie-editor')
+          if ($LASTEXITCODE -ne 0) { throw 'Editor candidate verification failed.' }
+      - uses: actions/upload-artifact@v4
+        with:
+          name: pixie-editor-release-candidate-windows-x64
+          path: ${{ runner.temp }}/pixie-editor/assets
+          if-no-files-found: error
+          retention-days: 30
