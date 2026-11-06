@@ -1,0 +1,45 @@
+<Project>
+  <PropertyGroup>
+    <_PixieGlfwSource>$(MSBuildThisFileDirectory)../eng/native/win-x64</_PixieGlfwSource>
+    <_PixieGlfwWinX64 Condition="'$(RuntimeIdentifier)' == 'win-x64' Or ('$(RuntimeIdentifier)' == '' And '$(OS)' == 'Windows_NT')">true</_PixieGlfwWinX64>
+  </PropertyGroup>
+
+  <ItemGroup Condition="'$(_PixieGlfwWinX64)' == 'true'">
+    <None Include="$(_PixieGlfwSource)/LICENSE.md" Link="licenses/glfw.txt"
+          CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <Target Name="BuildPixieEditorGlfw" Condition="'$(_PixieGlfwWinX64)' == 'true'">
+    <PropertyGroup>
+      <_PixieGlfwDll>$([System.IO.Path]::GetFullPath('$(_PixieGlfwSource)/glfw3.dll'))</_PixieGlfwDll>
+    </PropertyGroup>
+    <VerifyFileHash File="$(_PixieGlfwDll)" Hash="a070f1a082dd95ddf22ca8a1fca169aa34fa39b4cbcd8a9257003446cc80733b" />
+  </Target>
+
+  <Target Name="SelectPixieEditorGlfw" BeforeTargets="ResolveLockFileCopyLocalFiles"
+          DependsOnTargets="ResolvePackageAssets;BuildPixieEditorGlfw"
+          Condition="'$(_PixieGlfwWinX64)' == 'true' And '$(DesignTimeBuild)' != 'true'">
+    <!-- Retain the package's RID and destination metadata so the normal .NET loader finds our DLL. -->
+    <ItemGroup>
+      <_PixieGlfwRuntimeTarget Include="@(RuntimeTargetsCopyLocalItems)" Condition="'%(RuntimeTargetsCopyLocalItems.NuGetPackageId)' == 'Hexa.NET.GLFW' And '%(RuntimeTargetsCopyLocalItems.PathInPackage)' == 'runtimes/win-x64/native/glfw3.dll'" />
+      <_PixieGlfwNativeAsset Include="@(NativeCopyLocalItems)" Condition="'%(NativeCopyLocalItems.NuGetPackageId)' == 'Hexa.NET.GLFW' And '%(NativeCopyLocalItems.PathInPackage)' == 'runtimes/win-x64/native/glfw3.dll'" />
+      <RuntimeTargetsCopyLocalItems Remove="@(_PixieGlfwRuntimeTarget)" />
+      <NativeCopyLocalItems Remove="@(_PixieGlfwNativeAsset)" />
+      <RuntimeTargetsCopyLocalItems Include="@(_PixieGlfwRuntimeTarget->'$(_PixieGlfwDll)')" />
+      <NativeCopyLocalItems Include="@(_PixieGlfwNativeAsset->'$(_PixieGlfwDll)')" />
+    </ItemGroup>
+    <Error Condition="'@(_PixieGlfwRuntimeTarget->Count())' == '0' And '@(_PixieGlfwNativeAsset->Count())' == '0'"
+           Text="The PixieEditor build could not identify the Hexa.NET.GLFW Windows x64 native asset to replace." />
+  </Target>
+
+  <Target Name="SelectPixieEditorGlfwForPublish" AfterTargets="_ResolveCopyLocalAssetsForPublish"
+          Condition="'$(_PixieGlfwWinX64)' == 'true' And '$(_PixieGlfwDll)' != ''">
+    <!-- Store-layout publishes can resolve package assets again instead of reusing the build assets. -->
+    <ItemGroup>
+      <_PixieGlfwPublishAsset Include="@(_ResolvedCopyLocalPublishAssets)"
+          Condition="'%(_ResolvedCopyLocalPublishAssets.NuGetPackageId)' == 'Hexa.NET.GLFW' And '%(_ResolvedCopyLocalPublishAssets.PathInPackage)' == 'runtimes/win-x64/native/glfw3.dll'" />
+      <_ResolvedCopyLocalPublishAssets Remove="@(_PixieGlfwPublishAsset)" />
+      <_ResolvedCopyLocalPublishAssets Include="@(_PixieGlfwPublishAsset->'$(_PixieGlfwDll)')" />
+    </ItemGroup>
+  </Target>
+</Project>
