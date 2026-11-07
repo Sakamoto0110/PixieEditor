@@ -65,3 +65,33 @@ Use --import-layout with an absolute legacy file path to import it when no
 current layout exists. Development tests can supply an isolated --layout path.
 The capture runner accepts the private SDK and explicit project or module
 artifact. Legacy source fixtures must supply PIXIE_TEST_ENGINE_FIXTURE_ROOT.
+
+## Documentation governance
+
+Use the [documentation policy](governance/documentation-policy.md) for planning,
+evidence ownership and roadmap closure.
+
+## Void Agent Workplace
+
+The workspace owns project profiles outside the VAW source repository. The
+active Pixie family contains Engine, Editor, Inspector and Lib at profile
+revision 4; product code and local project contracts remain independently owned.
+The Editor's `vaw-local` remote is a local binding identity, not publication.
+
+Use the activated workspace launcher from the project root in PowerShell 7:
+
+```powershell
+& ../../.governance/vaw.ps1 -Action resolve-project-binding -Arguments @{ RepositoryPath = (Get-Location).Path }
+& ../../.governance/vaw.ps1 -Action resolve-workplace-binding -Arguments @{ WorkplacePath = (Resolve-Path ..).Path }
+```
+
+The launcher selects external profiles, the explicit registry, and the installed
+package set. Require `bound` for the project and `workplace_bound` for the family.
+Its activation receipt records the platform location, exact pins, packages and
+shared-policy hash. The shared policy is materialized from the workspace's
+versioned configuration; runtime copies and coordination records are local.
+
+Do not use an old VAW checkout's default profile directory after rebind. A
+binding grants no publication authority. Standalone project build and validation
+still work without VAW. Never run `git clean -x` on the enclosing VAW checkout:
+its ignored `projects/` contains independent repositories and unpushed work.
