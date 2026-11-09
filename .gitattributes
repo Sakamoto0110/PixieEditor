@@ -1,0 +1,14 @@
+* text=auto
+
+# Release notice inputs are verified against upstream byte hashes.
+eng/native/win-x64/notices/** -text
+
+# Vendored third-party sources are stored byte for byte, as released; see DEPENDENCIES.md.
+external/glew/** -text
+external/glfw/** -text
+external/stb/** -text
+external/pixielib/** -text
+external/glm/** -text
+external/entt/** -text
+external/nlohmann_json/** -text
+external/box2d/** -text

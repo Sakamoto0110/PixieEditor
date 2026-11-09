@@ -1,0 +1,21 @@
+<Project>
+  <PropertyGroup>
+    <PixieNativeMetadataMode>Installed</PixieNativeMetadataMode>
+    <!-- Visual Studio's MSBuild runs on .NET Framework, where IsPathFullyQualified is unavailable. -->
+    <_PixieBuildSdkAbsolute Condition="$([MSBuild]::IsOSPlatform('Windows')) And $([System.Text.RegularExpressions.Regex]::IsMatch('$(PixieBuildSdkRoot)', '^(?:[A-Za-z]:[\\/]|[\\/]{2}[^\\/]+[\\/][^\\/]+)'))">true</_PixieBuildSdkAbsolute>
+    <_PixieBuildSdkAbsolute Condition="!$([MSBuild]::IsOSPlatform('Windows')) And $([System.IO.Path]::IsPathRooted('$(PixieBuildSdkRoot)'))">true</_PixieBuildSdkAbsolute>
+  </PropertyGroup>
+  <Import Project="$(PixieBuildSdkRoot)/bindings/dotnet/NativeApiVersion.props"
+          Condition="'$(_PixieBuildSdkAbsolute)' == 'true' And Exists('$(PixieBuildSdkRoot)/bindings/dotnet/NativeApiVersion.props')" />
+  <ItemGroup Condition="'$(_PixieBuildSdkAbsolute)' == 'true'">
+    <Compile Include="$(PixieBuildSdkRoot)/bindings/dotnet/PixieCapi.cs" Link="Native/PixieCapi.cs" />
+  </ItemGroup>
+  <Target Name="ValidatePixieEditorBuildSdk" BeforeTargets="PrepareForBuild">
+    <Error Condition="'$(_PixieBuildSdkAbsolute)' != 'true'" Text="Set PixieBuildSdkRoot to an absolute installed SDK directory." />
+    <VerifyFileHash File="$(PixieBuildSdkRoot)/sdk.json" Hash="$(PixieBuildSdkCatalogSha256)" />
+    <VerifyFileHash File="$(PixieBuildSdkRoot)/bindings/dotnet/PixieCapi.cs" Hash="$(PixieBuildSdkBindingSha256)" />
+    <VerifyFileHash File="$(PixieBuildSdkRoot)/bindings/dotnet/NativeApiVersion.props" Hash="$(PixieBuildSdkPropsSha256)" />
+    <VerifyFileHash File="$(PixieBuildSdkRoot)/bindings/dotnet/NativeApiVersion.cs" Hash="$(PixieBuildSdkMetadataSha256)" />
+    <VerifyFileHash File="$(PixieBuildSdkRoot)/include/pixie_capi.h" Hash="$(PixieBuildSdkHeaderSha256)" />
+  </Target>
+</Project>
