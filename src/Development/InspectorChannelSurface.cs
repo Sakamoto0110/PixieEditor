@@ -134,7 +134,7 @@ internal sealed partial class InspectorPanel
             }
             foreach (var field in section.Texts)
                 omitted.Add(ObserveCustom(section.Name + "." + field.Name));
-            for (var f = 0; f < session.FieldCount(section.Type); ++f)
+            foreach (var f in section.Fields ?? Enumerable.Range(0, session.FieldCount(section.Type)))
                 if (session.FieldInfo(section.Type, f).Editor == PixieEditorKind.LayerMask)
                     omitted.Add(ObserveCustom(section.Name + "." + session.FieldName(section.Type, f)));
         }
@@ -162,10 +162,10 @@ internal sealed partial class InspectorPanel
         }
         var dot = path.IndexOf('.');
         if (dot <= 0) throw new ArgumentException("Inspector path must include its component prefix.");
-        var section = Sections.FirstOrDefault(s => s.Name == path[..dot]) ?? throw new ArgumentException("Component is not bound in the selected Inspector.");
-        var node = section.Inspector.FirstOrDefault(n => n.Path == path[(dot + 1)..])
-            ?? throw new ArgumentException("Path is not a registered Inspector node; custom rows use their existing editor gestures.");
-        return (section, node);
+        foreach (var section in Sections.Where(s => s.Name == path[..dot]))
+            if (section.Inspector.FirstOrDefault(n => n.Path == path[(dot + 1)..]) is { } node)
+                return (section, node);
+        throw new ArgumentException("Path is not a registered Inspector node; custom rows use their existing editor gestures.");
     }
     public JsonObject ChannelGet(string path, bool live = false)
     {
@@ -178,13 +178,16 @@ internal sealed partial class InspectorPanel
     {
         RequireChannelEntityTarget();
         var reports = new JsonArray();
-        foreach (var section in Sections)
-            reports.Add(new JsonObject { ["component"] = section.Name, ["creation_error_count"] = section.Inspector.Report.ErrorCount,
-                ["creation_unhandled_count"] = section.Inspector.Report.UnhandledErrorCount,
-                ["creation_critical_count"] = section.Inspector.Report.CriticalErrorCount,
-                ["creation_failures"] = new JsonArray(section.Inspector.Report.Failures.Select(f => (JsonNode?)Failure(f)).ToArray()),
-                ["current_nodes"] = new JsonArray(section.Inspector.Where(n => n.Failure != null || n.HasPendingValue || n.IsCompromised)
-                    .Take(1024).Select(n => (JsonNode?)Observe(section.Name, n)).ToArray()) });
+        foreach (var component in Sections.GroupBy(section => section.Name))
+            reports.Add(new JsonObject { ["component"] = component.Key,
+                ["creation_error_count"] = component.Sum(s => s.Inspector.Report.ErrorCount),
+                ["creation_unhandled_count"] = component.Sum(s => s.Inspector.Report.UnhandledErrorCount),
+                ["creation_critical_count"] = component.Sum(s => s.Inspector.Report.CriticalErrorCount),
+                ["creation_failures"] = new JsonArray(component.SelectMany(s => s.Inspector.Report.Failures)
+                    .Select(f => (JsonNode?)Failure(f)).ToArray()),
+                ["current_nodes"] = new JsonArray(component.SelectMany(s => s.Inspector)
+                    .Where(n => n.Failure != null || n.HasPendingValue || n.IsCompromised)
+                    .Take(1024).Select(n => (JsonNode?)Observe(component.Key, n)).ToArray()) });
         return new JsonObject { ["generation"] = ChannelGeneration, ["reports"] = reports };
     }
     public JsonObject ChannelGesture(Func<bool> handler, bool entityNavigation = false)

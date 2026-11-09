@@ -64,7 +64,9 @@ internal sealed partial class InspectorPanel
         var ids = Entities.Select(session.SceneId).ToArray();
         var disabled = scenes.UnavailableReason != null || scenes.NeedsConversion || ids.Any(id => id == null) || scenes.HasPending;
         ImGui.BeginDisabled(disabled);
-        if (ImGui.BeginCombo("Scene membership", label))
+        const string membership = "Scene membership";
+        ImGui.SetNextItemWidth(-ImGui.CalcTextSize(membership).X - ImGui.GetStyle().ItemInnerSpacing.X);
+        if (ImGui.BeginCombo(membership, label))
         {
             if (ImGui.Selectable("Directly in World", current == 0) && current != 0) scenes.Queue("transfer", entities: ids.OfType<ulong>().ToArray());
             foreach (var scope in scopes)

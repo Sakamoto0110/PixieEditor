@@ -69,8 +69,12 @@ internal sealed partial class Authoring(EngineSession session, Selection selecti
         });
     }
 
-    public void EditRecord(uint entity, int type, int list, int index, bool remove) =>
-        Change([entity], remove ? "removal of shape" : "addition of shape", e => session.EditRecord(e, type, list, index, remove));
+    public void EditRecord(uint entity, int type, int list, int index, bool remove)
+    {
+        var item = session.TypeName(type) == "CompoundCollider2D" && session.FieldName(type, list) == "shapes"
+            ? "shape" : $"item in {session.FieldText(type, list, PixieFieldText.Label)}";
+        Change([entity], $"{(remove ? "removal" : "addition")} of {item}", e => session.EditRecord(e, type, list, index, remove));
+    }
 
     public void SetRecordPoints(uint entity, int type, int list, int index, int field, IReadOnlyList<(double X, double Y)> points) =>
         Change([entity], "edit of shape points", e => session.SetRecordPoints(e, type, list, index, field, points));
@@ -390,6 +394,16 @@ internal sealed partial class Authoring(EngineSession session, Selection selecti
         Guard(() =>
         {
             var name = entities.Count == 1 ? $"deletion of {Describe(entities[0])}" : $"deletion of {entities.Count} entities";
+            if (Recording && session.HasParenting)
+            {
+                RecordParentingChange(name, () =>
+                {
+                    foreach (var entity in entities) session.Destroy(entity);
+                    selection.Prune(session);
+                    return true;
+                });
+                return 0;
+            }
             var (ids, before) = Take(entities);
             if (session.SceneFormatVersion == 2 && Recording)
             {
@@ -427,21 +441,26 @@ internal sealed partial class Authoring(EngineSession session, Selection selecti
                     session.Snapshot(inScene), [], true, DuplicateOffset, DuplicateOffset);
                 return true;
             }
-            var copies = session.Restore(session.Snapshot(inScene), newIds: true);
-            if (session.TypeIndex("Transform2D") is var transform and >= 0)
+            var parenting = Recording && session.HasParenting;
+            var name = inScene.Length == 1 ? $"duplicate of {Describe(inScene[0])}" : $"duplicate of {inScene.Length} entities";
+            bool Copy()
             {
-                var position = session.FieldIndex(transform, "position");
-                foreach (var copy in copies.Where(c => session.Has(c, transform)))
+                var copies = session.Restore(session.Snapshot(inScene), newIds: true);
+                if (session.TypeIndex("Transform2D") is var transform and >= 0)
                 {
-                    var at = session.Get(copy, transform, position);
-                    session.Set(copy, transform, position, at with { X = at.X + DuplicateOffset, Y = at.Y + DuplicateOffset });
+                    var position = session.FieldIndex(transform, "position");
+                    var moved = parenting ? BranchRoots(copies, session.ParentLinks(session.Entities())) : copies;
+                    foreach (var copy in moved.Where(c => session.Has(c, transform) && !session.FieldLocked(c, transform, position)))
+                    {
+                        var at = session.Get(copy, transform, position);
+                        session.Set(copy, transform, position, at with { X = at.X + DuplicateOffset, Y = at.Y + DuplicateOffset });
+                    }
                 }
+                selection.Set(copies);
+                if (!parenting) Record(name, copies, before: null, after: true);
+                return true;
             }
-
-            selection.Set(copies);
-            Record(copies.Length == 1 ? $"duplicate of {Describe(inScene[0])}" : $"duplicate of {copies.Length} entities",
-                copies, before: null, after: true);
-            return true;
+            return parenting ? RecordParentingChange(name, Copy) : Copy();
         });
     }
 
@@ -492,6 +511,15 @@ internal sealed partial class Authoring(EngineSession session, Selection selecti
     {
         Guard(() =>
         {
+            if (Recording && session.HasParenting)
+            {
+                RecordParentingChange(name, () =>
+                {
+                    foreach (var entity in entities) change(entity);
+                    return true;
+                });
+                return 0;
+            }
             var (ids, before) = Take(entities);
             foreach (var entity in entities)
                 change(entity);
@@ -509,6 +537,8 @@ internal sealed partial class Authoring(EngineSession session, Selection selecti
             return null;
         var position = session.FieldIndex(transform, "position");
         var moved = entities.Where(e => session.Has(e, transform)).ToArray();
+        if (session.HasParenting) moved = BranchRoots(moved, session.ParentLinks(session.Entities()));
+        moved = moved.Where(e => !session.FieldLocked(e, transform, position)).ToArray();
         if (moved.Length == 0)
             return null;
         var before = moved.Select(e => session.Get(e, transform, position)).ToArray();

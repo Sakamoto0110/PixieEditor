@@ -25,6 +25,8 @@ internal sealed partial class InspectorPanel(EngineSession session, Authoring au
 {
     private static readonly Vector4 ProblemColor = new(1.0f, 0.45f, 0.4f, 1.0f);
     private const float PreviewSize = 96f;
+    private const float BranchIndent = 12f;
+    private const ImGuiTreeNodeFlags BranchHeader = ImGuiTreeNodeFlags.Framed | ImGuiTreeNodeFlags.SpanAvailWidth;
 
     // Set by a scenario's button; the editor rebuilds the scene at the start of the next frame, not
     // while an inspector is drawing.
@@ -51,7 +53,8 @@ internal sealed partial class InspectorPanel(EngineSession session, Authoring au
 
     private sealed record TextField(int Field, string Name, string Label, string Tooltip, string Asset, PixieFieldKind Kind);
 
-    private sealed record Section(int Type, string Name, Inspector Inspector, ImGuiInspectorView View, TextField[] Texts);
+    private sealed record Section(int Type, string Name, Inspector Inspector, ImGuiInspectorView View, TextField[] Texts,
+        int[]? Fields = null, string[]? Group = null);
 
     private readonly List<Section> Sections = [];
     private long BoundRevision = -1;
@@ -64,96 +67,98 @@ internal sealed partial class InspectorPanel(EngineSession session, Authoring au
     private readonly Dictionary<(int Type, int Field), string> Typing = [];
     // A point being typed, while its row has the keyboard.
     private readonly Dictionary<(int Type, int Field, int Index), Vector2> PointTyping = [];
-    internal bool HasActiveAuthoringGesture => NameActive || ScopeNameActive || Typing.Count != 0 || PointTyping.Count != 0 ||
+    internal bool HasActiveAuthoringGesture => HasLocalAuthoringGesture ||
+        OpenBranches.Values.Any(binding => binding?.HasLocalAuthoringGesture == true);
+    private bool HasLocalAuthoringGesture => NameActive || ScopeNameActive || Typing.Count != 0 || PointTyping.Count != 0 ||
         LayerTyping.Count != 0 || RecordText.Count != 0 || RecordPoints.Count != 0
 #if PIXIE_INSPECTOR_FIELD_INTERACTIONS
-        || IsInteracting
+        || HasLocalInteraction
 #endif
         ;
 
-    public void Draw(IReadOnlyList<uint> selected)
+    private void DrawEntities(Selection selection)
     {
-        if (session.Edits.IsBlocked && !session.Edits.BindingRecovery) return;
+        var selected = selection.Items;
+        var selectionChanged = !selected.SequenceEqual(Entities);
         var types = selected.Count == 0
             ? []
             : Enumerable.Range(0, session.TypeCount).Where(t => selected.All(id => session.Has(id, t))).ToArray();
-        if (BoundToWorld || BoundScope != null || BoundRevision != session.BindingRevision || !selected.SequenceEqual(Entities) || !types.SequenceEqual(Types))
+        if (BoundToWorld || BoundScope != null || BoundRevision != session.BindingRevision || selectionChanged || !types.SequenceEqual(Types))
             Rebuild([.. selected], types);
 
         if (ImGui.Begin("Inspector"))
         {
-#if PIXIE_INSPECTOR_FIELD_INTERACTIONS
-            if (InteractionProblem != null) ImGui.TextColored(ProblemColor, InteractionProblem);
-#endif
             if (Entities.Length == 0)
-            {
                 ImGui.TextDisabled("Choose an entity.");
-            }
             else
             {
-                if (Entities.Length == 1)
-                    DrawName(Entities[0]);
-                else
-                    ImGui.TextUnformatted($"{Entities.Length} entities: {string.Join(", ", Entities.Take(4).Select(Describe))}{(Entities.Length > 4 ? ", ..." : "")}");
-                if (Entities.Length > 1 && Types.Length == 0)
-                    ImGui.TextDisabled("They share no component.");
-                DrawMembership();
-                ImGui.Separator();
-                int? remove = null;
-                var makeCompound = false;
-                foreach (var section in Sections)
-                {
-                    ImGui.PushID(section.Type);
-                    // The header's close button removes the component from every selected entity.
-                    var keep = true;
-                    if (ImGui.CollapsingHeader(section.Name, ref keep, ImGuiTreeNodeFlags.DefaultOpen))
-                    {
-                        var source = session.ComponentSource(section.Type);
-                        if (session.ProjectFolder != null && source.Length > 0 && ImGui.SmallButton("Open code"))
-                        {
-                            try { if (CodeEditor.Open(session.ProjectFolder, source) is { } notice) Status.Show(notice, error: true); }
-                            catch (EngineException error) { Status.Show(error.Message, error: true); }
-                        }
-                        foreach (var text in section.Texts)
-                        {
-                            if (text.Kind == PixieFieldKind.RecordList)
-                            {
-                                if (session.FieldInfo(section.Type, text.Field).Editor == PixieEditorKind.LayerNames)
-                                    DrawLayerNames(section.Type, text.Field);
-                                else DrawRecords(section.Type, text);
-                            }
-                            else if (text.Kind == PixieFieldKind.PointList)
-                                DrawPoints(section.Type, text);
-                            else
-                                DrawText(section.Type, text);
-                        }
-                        DrawLayerMasks(section.Type, Entities.Select(id => new ComponentHandle(session, id, section.Type, recorder)).ToArray());
-                        section.View.Draw();
-                        if (section.Name == "RigidBody2D")
-                            DrawBodyMass();
-                        if (section.Name == "Collider2D" && session.TypeIndex("CompoundCollider2D") >= 0 && ImGui.Button("Make compound"))
-                            makeCompound = true;
-                    }
-                    if (!keep)
-                        remove = section.Type;
-                    ImGui.PopID();
-                }
-
+                if (!session.HasParenting || Entities.Length > 1)
+                    DrawEntityDetails();
+                if (session.HasParenting)
+                    DrawParenting(selection, selectionChanged);
                 ImGui.Spacing();
                 DrawAddComponent();
-                // After drawing, so no inspector of the removed component is in use; the sections are
-                // made again on the next frame.
-                if (remove is { } type)
-                    authoring.Change(Entities, $"removal of {session.TypeName(type)}", id => session.RemoveComponent(id, type));
-                else if (makeCompound)
-                {
-                    recorder.Close();
-                    authoring.MakeCompound(Entities);
-                }
             }
         }
-
+        else
+            ReleaseHiddenBranchBindings();
         ImGui.End();
+        var command = ParentingCommand;
+        ParentingCommand = null;
+        command?.Invoke();
+    }
+
+    private void DrawEntityDetails()
+    {
+#if PIXIE_INSPECTOR_FIELD_INTERACTIONS
+        if (InteractionProblem != null) ImGui.TextColored(ProblemColor, InteractionProblem);
+#endif
+        if (Entities.Length == 1)
+            DrawName(Entities[0]);
+        else
+            ImGui.TextUnformatted($"{Entities.Length} entities: {string.Join(", ", Entities.Take(4).Select(Describe))}{(Entities.Length > 4 ? ", ..." : "")}");
+        if (Entities.Length > 1 && Types.Length == 0)
+            ImGui.TextDisabled("They share no component.");
+        DrawMembership();
+        ImGui.Separator();
+        int? remove = null;
+        var makeCompound = false;
+        foreach (var component in Sections.GroupBy(section => section.Type))
+        {
+            var section = component.First();
+            ImGui.PushID(section.Type);
+            // The header's close button removes the component from every selected entity.
+            var keep = true;
+            if (ImGui.CollapsingHeader(section.Name, ref keep, ImGuiTreeNodeFlags.DefaultOpen))
+            {
+                if (section.Name == "Transform2D" && session.HasParenting && ImGui.IsItemHovered())
+                    ImGui.SetTooltip("These fields use world position, rotation and scale.");
+                var source = session.ComponentSource(section.Type);
+                if (session.ProjectFolder != null && source.Length > 0 && ImGui.SmallButton("Open code"))
+                {
+                    try { if (CodeEditor.Open(session.ProjectFolder, source) is { } notice) Status.Show(notice, error: true); }
+                    catch (EngineException error) { Status.Show(error.Message, error: true); }
+                }
+                DrawFieldGroups(component, Entities.Select(id => new ComponentHandle(session, id, section.Type, recorder)).ToArray());
+                if (section.Name == "RigidBody2D")
+                    DrawBodyMass();
+                if (section.Name == "Collider2D" && session.TypeIndex("CompoundCollider2D") >= 0 && ImGui.Button("Make compound"))
+                    makeCompound = true;
+            }
+            if (!keep)
+                remove = section.Type;
+            ImGui.PopID();
+        }
+
+        // After drawing, so no inspector of the removed component is in use; the sections are
+        // made again on the next frame.
+        if (remove is { } type)
+            authoring.Change(Entities, $"removal of {session.TypeName(type)}", id => session.RemoveComponent(id, type));
+        else if (makeCompound)
+        {
+            recorder.Close();
+            authoring.MakeCompound(Entities);
+        }
     }
 
     // A button with the component types not every selected entity has; choosing one adds it to all.
@@ -236,10 +241,12 @@ internal sealed partial class InspectorPanel(EngineSession session, Authoring au
         if (!Typing.TryGetValue(key, out var text))
             text = mixed ? "" : values[0];
 
+        var editLocked = session.FieldInfo(type, field.Field).Flags.HasFlag(PixieFieldFlags.ReadOnly) ||
+            Entities.Any(entity => session.FieldLocked(entity, type, field.Field));
 #if PIXIE_INSPECTOR_FIELD_INTERACTIONS
-        var editLocked = DrawCustomEditControls(type, field.Field);
-        ImGui.BeginDisabled(editLocked);
+        editLocked |= DrawCustomEditControls(type, field.Field);
 #endif
+        ImGui.BeginDisabled(editLocked);
         ImGui.TextUnformatted(mixed ? $"{field.Label} (mixed)" : field.Label);
         if (field.Tooltip.Length > 0 && ImGui.IsItemHovered())
             ImGui.SetTooltip(field.Tooltip);
@@ -250,11 +257,7 @@ internal sealed partial class InspectorPanel(EngineSession session, Authoring au
             Typing[key] = text;
         else
             Typing.Remove(key);
-        if (ImGui.IsItemDeactivatedAfterEdit()
-#if PIXIE_INSPECTOR_FIELD_INTERACTIONS
-            && !editLocked
-#endif
-        )
+        if (ImGui.IsItemDeactivatedAfterEdit() && !editLocked)
             authoring.SetText(Entities, type, field.Field, text.Trim());
         if (field.Tooltip.Length > 0 && ImGui.IsItemHovered())
             ImGui.SetTooltip(field.Tooltip);
@@ -284,9 +287,7 @@ internal sealed partial class InspectorPanel(EngineSession session, Authoring au
                 ImGui.TextColored(ProblemColor, $"{values[0]}: the file does not exist");
         }
 
-#if PIXIE_INSPECTOR_FIELD_INTERACTIONS
         ImGui.EndDisabled();
-#endif
         ImGui.Spacing();
         ImGui.PopID();
     }
@@ -298,19 +299,19 @@ internal sealed partial class InspectorPanel(EngineSession session, Authoring au
         ImGui.PushID(field.Field);
         var lists = Entities.Select(e => session.GetPoints(e, type, field.Field)).ToArray();
         var mixed = lists.Skip(1).Any(l => !l.SequenceEqual(lists[0]));
+        var editLocked = session.FieldInfo(type, field.Field).Flags.HasFlag(PixieFieldFlags.ReadOnly) ||
+            Entities.Any(entity => session.FieldLocked(entity, type, field.Field));
 #if PIXIE_INSPECTOR_FIELD_INTERACTIONS
-        var editLocked = DrawCustomEditControls(type, field.Field);
-        ImGui.BeginDisabled(editLocked);
+        editLocked |= DrawCustomEditControls(type, field.Field);
 #endif
+        ImGui.BeginDisabled(editLocked);
         ImGui.TextUnformatted(mixed ? $"{field.Label} (mixed)" : $"{field.Label} ({lists[0].Length})");
         if (field.Tooltip.Length > 0 && ImGui.IsItemHovered())
             ImGui.SetTooltip(field.Tooltip);
         if (mixed)
         {
             ImGui.TextDisabled("The selected entities differ; select one to edit its points.");
-#if PIXIE_INSPECTOR_FIELD_INTERACTIONS
             ImGui.EndDisabled();
-#endif
             ImGui.PopID();
             return;
         }
@@ -329,11 +330,7 @@ internal sealed partial class InspectorPanel(EngineSession session, Authoring au
                 PointTyping[key] = value;
             else
                 PointTyping.Remove(key);
-            if (ImGui.IsItemDeactivatedAfterEdit()
-#if PIXIE_INSPECTOR_FIELD_INTERACTIONS
-            && !editLocked
-#endif
-        )
+            if (ImGui.IsItemDeactivatedAfterEdit() && !editLocked)
             {
                 var changed = points.ToArray();
                 changed[i] = (value.X, value.Y);
@@ -352,9 +349,7 @@ internal sealed partial class InspectorPanel(EngineSession session, Authoring au
             authoring.AddPoint(Entities, type, field.Field);
         if (remove is { } index)
             authoring.RemovePoint(Entities, type, field.Field, index);
-#if PIXIE_INSPECTOR_FIELD_INTERACTIONS
         ImGui.EndDisabled();
-#endif
         ImGui.Spacing();
         ImGui.PopID();
     }
@@ -402,7 +397,9 @@ internal sealed partial class InspectorPanel(EngineSession session, Authoring au
     )
     {
         session.Edits.RequireMutation();
-        var section = Sections.FirstOrDefault(s => s.Name == type);
+        var component = Sections.Where(s => s.Name == type).ToArray();
+        var section = component.FirstOrDefault(s => s.Texts.Any(field => field.Name == property) ||
+            s.Inspector.Any(node => node.Name == property)) ?? component.FirstOrDefault();
         if (section == null)
             return false;
         if (BoundToWorld && (!session.Editing || !WorldPropertyAllowed(type, property) ||
@@ -498,18 +495,7 @@ internal sealed partial class InspectorPanel(EngineSession session, Authoring au
         foreach (var type in types)
         {
             var handles = entities.Select(id => new ComponentHandle(session, id, type, recorder)).ToArray();
-            var inspector = InspectorFactory.Build(session, type, handles, () => RebuildRequested = true);
-            var texts = Enumerable.Range(0, session.FieldCount(type))
-                .Select(f => (Field: f, Kind: session.FieldInfo(type, f).Kind))
-                .Where(f => f.Kind is PixieFieldKind.Text or PixieFieldKind.PointList or PixieFieldKind.RecordList)
-                .Select(f => new TextField(f.Field, session.FieldName(type, f.Field), session.FieldText(type, f.Field, PixieFieldText.Label),
-                    session.FieldText(type, f.Field, PixieFieldText.Tooltip), session.FieldText(type, f.Field, PixieFieldText.Asset), f.Kind))
-                .ToArray();
-            var view = inspector.CreateImGuiView();
-#if PIXIE_INSPECTOR_FIELD_INTERACTIONS
-            ConfigureInteraction(view);
-#endif
-            Sections.Add(new Section(type, session.TypeName(type), inspector, view, texts));
+            BuildFieldGroups(type, handles);
         }
 #if PIXIE_INSPECTOR_FIELD_INTERACTIONS
         ConfigureDimensionChains();
@@ -536,6 +522,8 @@ internal sealed partial class InspectorPanel(EngineSession session, Authoring au
 
     public void Dispose()
     {
+        foreach (var binding in OpenBranches.Values) binding?.Dispose();
+        OpenBranches.Clear();
         if (WorldBindingsSubscribed) session.BindingsReplacing -= BeforeWorldBindingsReplace;
 #if PIXIE_INSPECTOR_FIELD_INTERACTIONS
         if (InteractionSubscribed) session.BindingsReplacing -= BeforeBindingsReplace;

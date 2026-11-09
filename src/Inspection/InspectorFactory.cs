@@ -17,7 +17,7 @@ internal static class InspectorFactory
     // An inspector of component `type`, bound to the first handle and to the rest with AddBind. A
     // scenario type also gets a button that asks for the scene to be rebuilt with its values.
     public static Inspector Build(EngineSession session, int type, IReadOnlyList<ComponentHandle> handles, Action rebuild,
-        Func<int, bool>? include = null, bool forceReadOnly = false)
+        Func<int, bool>? include = null, bool forceReadOnly = false, bool showRebuild = true)
     {
         var inspector = Inspector.Create<ComponentHandle>(TypeBinderMode.Manual);
         var fields = Enumerable.Range(0, session.FieldCount(type))
@@ -29,16 +29,23 @@ internal static class InspectorFactory
         foreach (var (field, info) in fields)
         {
             if (include != null && !include(field)) continue;
+            if (session.Editing && info.Flags.HasFlag(PixieFieldFlags.Runtime)) continue;
             if (info.Editor == PixieEditorKind.LayerMask) continue;
+            var locked = forceReadOnly || handles.Any(handle => handle.Record == null && session.FieldLocked(handle.Entity, type, field));
             foreach (var node in AddNodes(inspector, session, type, field, info))
             {
                 ApplyOptions(node, session, type, field, info);
-                if (forceReadOnly) node.ReadOnly = true;
+                if (locked)
+                {
+                    node.ReadOnly = true;
+                    if (!forceReadOnly && string.IsNullOrEmpty(node.Help) && !info.Flags.HasFlag(PixieFieldFlags.ReadOnly))
+                        node.Help = "The project controls this value. Change the authored settings that feed it.";
+                }
                 node.Order = row++;
             }
         }
 
-        if (session.IsScenario(type))
+        if (showRebuild && session.IsScenario(type))
         {
             var button = inspector.AddButton(RebuildButton, "Rebuild the scene", rebuild);
             button.Label = string.Empty;
@@ -66,7 +73,9 @@ internal static class InspectorFactory
         for (var field = 0; field < session.FieldCount(type); ++field)
         {
             if (include != null && !include(field)) continue;
-            var kind = session.FieldInfo(type, field).Kind;
+            var info = session.FieldInfo(type, field);
+            if (session.Editing && info.Flags.HasFlag(PixieFieldFlags.Runtime)) continue;
+            var kind = info.Kind;
             var name = session.FieldName(type, field);
             if (kind is PixieFieldKind.Point or PixieFieldKind.Vector)
                 Connect([inspector[NodeName(name, "X")], inspector[NodeName(name, "Y")]]);

@@ -22,15 +22,18 @@ internal sealed partial class InspectorPanel
         if (RecordSections.TryGetValue(key, out var found)) return found;
         var (itemType, _) = session.RecordInfo(Entities[0], type, list);
         var handle = new ComponentHandle(session, Entities[0], itemType, recorder, new RecordAddress(type, list, index));
-        var inspector = InspectorFactory.Build(session, itemType, [handle], () => { });
+        var readOnly = session.FieldInfo(type, list).Flags.HasFlag(PixieFieldFlags.ReadOnly) ||
+            session.FieldLocked(Entities[0], type, list);
+        var inspector = InspectorFactory.Build(session, itemType, [handle], () => { }, forceReadOnly: readOnly);
 #if PIXIE_DEVELOPMENT
         ChannelNewInspector?.Invoke(inspector);
 #endif
         var texts = Enumerable.Range(0, session.FieldCount(itemType))
-            .Select(f => (Field: f, Kind: session.FieldInfo(itemType, f).Kind))
-            .Where(f => f.Kind is PixieFieldKind.Text or PixieFieldKind.PointList or PixieFieldKind.RecordList)
+            .Select(f => (Field: f, Info: session.FieldInfo(itemType, f)))
+            .Where(f => !session.Editing || !f.Info.Flags.HasFlag(PixieFieldFlags.Runtime))
+            .Where(f => f.Info.Kind is PixieFieldKind.Text or PixieFieldKind.PointList or PixieFieldKind.RecordList)
             .Select(f => new TextField(f.Field, session.FieldName(itemType, f.Field), session.FieldText(itemType, f.Field, PixieFieldText.Label),
-                session.FieldText(itemType, f.Field, PixieFieldText.Tooltip), "", f.Kind)).ToArray();
+                session.FieldText(itemType, f.Field, PixieFieldText.Tooltip), "", f.Info.Kind)).ToArray();
         var view = inspector.CreateImGuiView();
 #if PIXIE_INSPECTOR_FIELD_INTERACTIONS
         ConfigureInteraction(view);
@@ -43,11 +46,14 @@ internal sealed partial class InspectorPanel
         ImGui.PushID(field.Field);
         if (Entities.Length != 1)
         {
-            ImGui.TextDisabled("Select one entity to edit its shapes.");
+            ImGui.TextDisabled("Select one entity to inspect this list.");
             ImGui.PopID();
             return;
         }
-        var (_, count) = session.RecordInfo(Entities[0], type, field.Field);
+        var (itemType, count) = session.RecordInfo(Entities[0], type, field.Field);
+        var readOnly = session.FieldInfo(type, field.Field).Flags.HasFlag(PixieFieldFlags.ReadOnly) ||
+            session.FieldLocked(Entities[0], type, field.Field);
+        var shapes = session.TypeName(type) == "CompoundCollider2D" && field.Name == "shapes";
         if (RecordCounts.TryGetValue((type, field.Field), out var previous) && previous != count) ReleaseRecords();
         RecordCounts[(type, field.Field)] = count;
         ImGui.TextUnformatted($"{field.Label} ({count})");
@@ -57,18 +63,22 @@ internal sealed partial class InspectorPanel
         {
             ImGui.PushID(i);
             var keep = true;
-            if (ImGui.CollapsingHeader($"Shape {i + 1}", ref keep, i == 0 ? ImGuiTreeNodeFlags.DefaultOpen : ImGuiTreeNodeFlags.None))
+            var title = $"{(shapes ? "Shape" : "Item")} {i + 1}";
+            var flags = i == 0 ? ImGuiTreeNodeFlags.DefaultOpen : ImGuiTreeNodeFlags.None;
+            var expanded = readOnly ? ImGui.CollapsingHeader(title, flags) : ImGui.CollapsingHeader(title, ref keep, flags);
+            if (expanded)
             {
                 var section = RecordInspector(type, field.Field, i);
+                ImGui.BeginDisabled(readOnly);
                 foreach (var text in section.Texts)
                 {
                     if (text.Kind == PixieFieldKind.PointList) DrawRecordPoints(type, field.Field, i, text);
                     else if (text.Kind == PixieFieldKind.Text) DrawRecordText(type, field.Field, i, text);
                     else ImGui.TextDisabled("Nested record lists need a deeper editor.");
                 }
-                var (itemType, _) = session.RecordInfo(Entities[0], type, field.Field);
                 DrawLayerMasks(itemType, [new ComponentHandle(session, Entities[0], itemType, recorder, new RecordAddress(type, field.Field, i))]);
                 section.View.Draw();
+                ImGui.EndDisabled();
             }
             if (!keep) removed = i;
             ImGui.PopID();
@@ -78,13 +88,16 @@ internal sealed partial class InspectorPanel
             recorder.Close();
             authoring.EditRecord(Entities[0], type, field.Field, index, remove: true);
         }
-        ImGui.BeginDisabled(count >= 256 || removed != null);
-        if (ImGui.Button("Add shape"))
+        if (!readOnly)
         {
-            recorder.Close();
-            authoring.EditRecord(Entities[0], type, field.Field, count, remove: false);
+            ImGui.BeginDisabled(count >= 256 || removed != null);
+            if (ImGui.Button(shapes ? "Add shape" : "Add item"))
+            {
+                recorder.Close();
+                authoring.EditRecord(Entities[0], type, field.Field, count, remove: false);
+            }
+            ImGui.EndDisabled();
         }
-        ImGui.EndDisabled();
         ImGui.PopID();
     }
 
@@ -92,15 +105,14 @@ internal sealed partial class InspectorPanel
     {
         ImGui.PushID(field.Field);
         var points = session.GetRecordPoints(Entities[0], type, list, index, field.Field);
-#if PIXIE_INSPECTOR_FIELD_INTERACTIONS
         var (itemType, _) = session.RecordInfo(Entities[0], type, list);
-        var editLocked = DrawCustomEditControls(itemType, field.Field, new RecordAddress(type, list, index));
-#endif
-        if (ImGui.TreeNode($"{field.Label} ({points.Length})"))
-        {
+        var editLocked = session.FieldInfo(itemType, field.Field).Flags.HasFlag(PixieFieldFlags.ReadOnly);
 #if PIXIE_INSPECTOR_FIELD_INTERACTIONS
-            ImGui.BeginDisabled(editLocked);
+        editLocked |= DrawCustomEditControls(itemType, field.Field, new RecordAddress(type, list, index));
 #endif
+        if (ImGui.TreeNodeEx($"{field.Label} ({points.Length})", BranchHeader))
+        {
+            ImGui.BeginDisabled(editLocked);
             int? removed = null;
             for (var i = 0; i < points.Length; ++i)
             {
@@ -110,11 +122,7 @@ internal sealed partial class InspectorPanel
                 ImGui.SetNextItemWidth(-40);
                 ImGui.InputFloat2("##point", ref value);
                 if (ImGui.IsItemActive()) RecordPoints[key] = value; else RecordPoints.Remove(key);
-                if (ImGui.IsItemDeactivatedAfterEdit()
-#if PIXIE_INSPECTOR_FIELD_INTERACTIONS
-            && !editLocked
-#endif
-        )
+                if (ImGui.IsItemDeactivatedAfterEdit() && !editLocked)
                 {
                     var changed = points.ToArray();
                     changed[i] = (value.X, value.Y);
@@ -135,9 +143,7 @@ internal sealed partial class InspectorPanel
                 recorder.Close();
                 authoring.SetRecordPoints(Entities[0], type, list, index, field.Field, [.. points, (32, 0)]);
             }
-#if PIXIE_INSPECTOR_FIELD_INTERACTIONS
             ImGui.EndDisabled();
-#endif
             ImGui.TreePop();
         }
         ImGui.PopID();
@@ -147,11 +153,12 @@ internal sealed partial class InspectorPanel
     {
         var key = (type, list, index, field.Field);
         if (!RecordText.TryGetValue(key, out var text)) text = session.GetRecordText(Entities[0], type, list, index, field.Field);
-#if PIXIE_INSPECTOR_FIELD_INTERACTIONS
         var (itemType, _) = session.RecordInfo(Entities[0], type, list);
-        var editLocked = DrawCustomEditControls(itemType, field.Field, new RecordAddress(type, list, index));
-        ImGui.BeginDisabled(editLocked);
+        var editLocked = session.FieldInfo(itemType, field.Field).Flags.HasFlag(PixieFieldFlags.ReadOnly);
+#if PIXIE_INSPECTOR_FIELD_INTERACTIONS
+        editLocked |= DrawCustomEditControls(itemType, field.Field, new RecordAddress(type, list, index));
 #endif
+        ImGui.BeginDisabled(editLocked);
 #if PIXIE_INSPECTOR_FIELD_INTERACTIONS
         ImGui.TextUnformatted(field.Label);
         ImGui.SetNextItemWidth(-1);
@@ -160,18 +167,12 @@ internal sealed partial class InspectorPanel
         ImGui.InputText(field.Label, ref text, 4096);
 #endif
         if (ImGui.IsItemActive()) RecordText[key] = text; else RecordText.Remove(key);
-        if (ImGui.IsItemDeactivatedAfterEdit()
-#if PIXIE_INSPECTOR_FIELD_INTERACTIONS
-            && !editLocked
-#endif
-        )
+        if (ImGui.IsItemDeactivatedAfterEdit() && !editLocked)
         {
             recorder.Close();
             authoring.SetRecordText(Entities[0], type, list, index, field.Field, text);
         }
-#if PIXIE_INSPECTOR_FIELD_INTERACTIONS
         ImGui.EndDisabled();
-#endif
     }
 
     // Scripted edits use the same descriptor-built node as the inspector, including display units.

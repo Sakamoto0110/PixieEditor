@@ -22,8 +22,10 @@ internal sealed partial class InspectorPanel
     public void Draw(Selection selection)
     {
         if (session.Edits.IsBlocked && !session.Edits.BindingRecovery) return;
+        if (selection.Scope != null || selection.IsWorld || selection.Items.Count == 0 || !session.HasParenting)
+            ReleaseHiddenBranchBindings();
         if (selection.Scope is { } scope) { DrawScope(scope); return; }
-        if (!selection.IsWorld) { Draw(selection.Items); return; }
+        if (!selection.IsWorld) { DrawEntities(selection); return; }
         BindWorld();
         DrawWorld();
     }

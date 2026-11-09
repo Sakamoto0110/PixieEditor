@@ -92,6 +92,33 @@ internal sealed unsafe partial class ViewportPanel(EngineSession session, Select
         return this;
     }
 
+    private long? FailedPlayRevision;
+    private bool PlaybackBlocked => FailedPlayRevision == session.BindingRevision;
+
+    internal void AdvancePlayback(double? elapsed = null)
+    {
+        if (PlaybackBlocked) return;
+        try
+        {
+            if (elapsed is { } seconds) session.Advance(seconds);
+            else session.Step();
+        }
+        catch (EngineException failure) when (session.ProjectFolder != null && !session.Editing)
+        {
+            try
+            {
+                selection.PreserveThrough(session, session.Stop);
+                Mode = ViewportMode.Select;
+                Status.Show($"Play stopped after a game error: {failure.Message}", error: true);
+            }
+            catch (EngineException recovery)
+            {
+                FailedPlayRevision = session.BindingRevision;
+                Status.Show($"Play failed: {failure.Message} Could not restore the Edit scene: {recovery.Message}", error: true);
+            }
+        }
+    }
+
     public void Draw(double frameDelta)
     {
         ImGui.PushStyleVar(ImGuiStyleVar.WindowPadding, Vector2.Zero);
@@ -102,6 +129,7 @@ internal sealed unsafe partial class ViewportPanel(EngineSession session, Select
 #endif
             DrawControls?.Invoke();
             if (session.ProjectFolder != null) { DrawEnvironmentChoice(); DrawCameraChoice(); }
+            var guide = ReadCircleGuide();
             var size = ImGui.GetContentRegionAvail();
             Scale = ImGui.GetIO().DisplayFramebufferScale;
             var width = Math.Max(1, (int)(size.X * Scale.X));
@@ -141,15 +169,17 @@ internal sealed unsafe partial class ViewportPanel(EngineSession session, Select
             if (!AgentDriven)
             {
                 if (Capture != null) Capture.Advance();
-                else session.Advance(frameDelta);
+                else AdvancePlayback(frameDelta);
             }
 #else
-            session.Advance(frameDelta);
+            AdvancePlayback(frameDelta);
 #endif
-            var texture = RenderTexture();
+            var texture = PlaybackBlocked ? 0 : RenderTexture();
+            if (PlaybackBlocked) ImGui.TextDisabled("Playback halted. Use Stop to retry restoring the Edit scene.");
 
             // GL's first row is the bottom of the image; ImGui draws top down, so flip the coordinates.
             if (texture != 0) ImGui.Image(new ImTextureRef(null, new ImTextureID(texture)), size, new Vector2(0, 1), new Vector2(1, 0));
+            if (texture != 0) DrawCircleGuide(guide, size);
             DrawSelection();
             DrawColliderHandles();
             DrawLightHandles();
@@ -164,7 +194,7 @@ internal sealed unsafe partial class ViewportPanel(EngineSession session, Select
             ChannelVisible = false;
             // A saved collapsed/tabbed-out viewport must not stall a finite capture run.
             Capture?.Advance();
-            if (AgentDriven) RenderTexture();
+            if (AgentDriven && !PlaybackBlocked) RenderTexture();
 #endif
             Hovered = false;
             Focused = false;

@@ -19,6 +19,14 @@ internal sealed class EntitiesPanel(EngineSession session, Selection selection, 
         {
             DrawScenes();
             var entities = session.Entities();
+            var parenting = session.HasParenting;
+            var selectedRoots = new HashSet<uint>();
+            if (parenting)
+            {
+                var links = session.ParentLinks(entities);
+                selectedRoots.UnionWith(selection.Items.Select(entity => Authoring.HierarchyRoot(entity, links)));
+                entities = entities.Where(entity => !links.ContainsKey(entity)).ToArray();
+            }
             if (ImGui.Button("+ Create")) ImGui.OpenPopup("entity-presets");
             if (ImGui.BeginPopup("entity-presets"))
             {
@@ -37,7 +45,7 @@ internal sealed class EntitiesPanel(EngineSession session, Selection selection, 
                 }
                 ImGui.EndPopup();
             }
-            ImGui.SameLine(); ImGui.TextDisabled($"{entities.Length} total");
+            ImGui.SameLine(); ImGui.TextDisabled(parenting ? $"{entities.Length} roots" : $"{entities.Length} total");
             if (selection.Items.Count > 0) ImGui.TextDisabled($"{selection.Items.Count} selected");
             ImGui.Separator();
 
@@ -53,7 +61,7 @@ internal sealed class EntitiesPanel(EngineSession session, Selection selection, 
                     var id = entities[i];
                     var name = session.EntityName(id);
                     var label = name.Length > 0 ? $"{name}  #{id & IndexMask}##{id}" : $"#{id & IndexMask}##{id}";
-                    if (ImGui.Selectable(label, selection.Contains(id)))
+                    if (ImGui.Selectable(label, parenting ? selectedRoots.Contains(id) : selection.Contains(id)))
                         Click(entities, id);
                 }
 
@@ -69,6 +77,7 @@ internal sealed class EntitiesPanel(EngineSession session, Selection selection, 
     private void DrawScenes()
     {
         if (authoring.Scenes is not { } scenes || session.ProjectFolder == null) return;
+        if (session.SceneFormatVersion == 3) return;
         if (!ImGui.CollapsingHeader("Scenes", ImGuiTreeNodeFlags.DefaultOpen)) return;
         if (ImGui.Selectable("World properties##world", selection.IsWorld)) selection.SetWorld();
         foreach (var scope in session.SceneScopes())

@@ -55,6 +55,12 @@ internal sealed class ReplaceStep(string name, IReadOnlyList<ulong> entities, st
         if (session.SceneFormatVersion == 2)
             return session.RestoreHistoryFragmentCandidate?.Invoke(state ?? "", entities.ToArray())
                 ?? throw new EngineException("Version2 replacement history requires candidate publication.");
+        if (session.HasParenting)
+        {
+            var replaced = entities.Select(session.Find).OfType<uint>().ToHashSet();
+            if (session.ParentLinks(session.Entities()).Any(edge => replaced.Contains(edge.Value) && !replaced.Contains(edge.Key)))
+                throw new EngineException("This fragment history entry does not cover the surviving child links.");
+        }
         if (state != null) session.ValidateRestore(state, newIds: false, replacing: entities);
         foreach (var id in entities)
         {
@@ -63,6 +69,20 @@ internal sealed class ReplaceStep(string name, IReadOnlyList<ulong> entities, st
         }
 
         return state == null ? [] : session.Restore(state, newIds: false);
+    }
+}
+
+// A structural edit may change surviving children as well as the selected entities.
+internal sealed class ParentingStep(string name, string before, string after, ulong[] beforeSelection, ulong[] afterSelection) : IStep
+{
+    public string Name => name;
+    public uint[] Undo(EngineSession session) => Apply(session, before, beforeSelection);
+    public uint[] Redo(EngineSession session) => Apply(session, after, afterSelection);
+
+    private static uint[] Apply(EngineSession session, string document, ulong[] selection)
+    {
+        session.RestoreParentingHistory(document);
+        return selection.Select(session.Find).OfType<uint>().ToArray();
     }
 }
 

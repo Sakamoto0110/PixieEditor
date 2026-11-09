@@ -44,7 +44,9 @@ internal sealed partial class InspectorPanel
         CustomControlNodes.Clear();
     }
 
-    internal bool IsInteracting => Sections.Any(s => s.View.IsEditing) || RecordSections.Values.Any(s => s.View.IsEditing);
+    internal bool IsInteracting => HasLocalInteraction ||
+        OpenBranches.Values.Any(binding => binding?.HasLocalInteraction == true);
+    private bool HasLocalInteraction => Sections.Any(s => s.View.IsEditing) || RecordSections.Values.Any(s => s.View.IsEditing);
 
     private unsafe void ConfigureInteraction(ImGuiInspectorView view)
     {

@@ -584,7 +584,7 @@ internal sealed class EditorWindow(EditorOptions options)
 #if PIXIE_DEVELOPMENT
             if (channel != null)
             {
-                session.Advance(frameDelta);
+                viewport.AdvancePlayback(frameDelta);
                 channel.Drain();
                 if (session.Edits.IsBlocked) { FinishRecoveryFrame(now); continue; }
             }

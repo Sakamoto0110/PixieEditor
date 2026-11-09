@@ -28,6 +28,11 @@ internal static class GameLibrary
 
     public static string Loaded => LoadSucceeded ? Path! : throw new InvalidOperationException("No game library is loaded.");
     public static bool IsLoaded => LoadSucceeded;
+    internal static bool SupportsFieldGroups { get; private set; }
+    internal static bool SupportsAuthoringTools { get; private set; }
+    internal static bool SupportsParenting => EngineHandle != 0 &&
+        NativeLibrary.TryGetExport(EngineHandle, "pixie_entity_parent_2d", out _) &&
+        NativeLibrary.TryGetExport(EngineHandle, "pixie_entities_set_parent_2d", out _);
 
     public static void Use(string path)
     {
@@ -53,6 +58,9 @@ internal static class GameLibrary
             { throw new EngineException($"Cannot load the selected Engine SDK runtime: {error.Message}"); }
         }
         ValidateNativeIdentity(sdk);
+        SupportsFieldGroups = NativeLibrary.TryGetExport(EngineHandle, "pixie_field_group", out _);
+        SupportsAuthoringTools = NativeLibrary.TryGetExport(EngineHandle, "pixie_field_authoring_lock", out _) &&
+            NativeLibrary.TryGetExport(EngineHandle, "pixie_authoring_circle", out _);
         if (!Path.Equals(sdk.RuntimePath, StringComparison.OrdinalIgnoreCase))
         {
             if ((sdk.CapabilityBits & 1) == 0) throw new EngineException("The selected SDK cannot load game modules.");

@@ -96,7 +96,7 @@ internal sealed class Toolbar(EngineSession session, ViewportPanel viewport, Aut
             Place(70);
             if (ImGui.Button(!editing && stats.Paused != 0 ? "Resume" : "Pause", new Vector2(70, 0))) session.Paused = stats.Paused == 0;
             ImGui.BeginDisabled(stats.Paused == 0);
-            Place(45); if (ImGui.Button("Step")) session.Step();
+            Place(45); if (ImGui.Button("Step")) viewport.AdvancePlayback();
             ImGui.EndDisabled();
             var index = NearestIndex(stats.TimeScale);
             ImGui.BeginDisabled(index == 0);

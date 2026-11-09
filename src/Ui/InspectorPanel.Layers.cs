@@ -7,13 +7,14 @@ namespace PixieEditor.Ui;
 
 internal sealed partial class InspectorPanel
 {
-    private readonly Dictionary<int, string> LayerTyping = [];
+    private readonly Dictionary<(int Type, int List, int Slot), string> LayerTyping = [];
 
-    private void DrawLayerMasks(int type, ComponentHandle[] handles)
+    private void DrawLayerMasks(int type, ComponentHandle[] handles, int[]? fields = null)
     {
-        foreach (var field in Enumerable.Range(0, session.FieldCount(type)))
+        foreach (var field in fields ?? Enumerable.Range(0, session.FieldCount(type)))
         {
             var info = session.FieldInfo(type, field);
+            if (session.Editing && info.Flags.HasFlag(PixieFieldFlags.Runtime)) continue;
             if (info.Editor != PixieEditorKind.LayerMask) continue;
             var label = session.FieldText(type, field, PixieFieldText.Label);
             var scheme = LayerScheme.Of(session, type, field);
@@ -29,7 +30,7 @@ internal sealed partial class InspectorPanel
 #if PIXIE_INSPECTOR_FIELD_INTERACTIONS
             var editLocked = DrawCustomEditControls(type, field, handles[0].Record);
 #endif
-            if (ImGui.TreeNodeEx($"{label}: {summary}##filter", ImGuiTreeNodeFlags.DefaultOpen))
+            if (ImGui.TreeNodeEx($"{label}: {summary}##filter", BranchHeader | ImGuiTreeNodeFlags.DefaultOpen))
             {
                 if (ImGui.IsItemHovered()) ImGui.SetTooltip(session.FieldText(type, field, PixieFieldText.Tooltip));
                 if (ImGui.BeginChild("layers", new Vector2(0, 150), ImGuiChildFlags.Borders))
@@ -102,6 +103,7 @@ internal sealed partial class InspectorPanel
     private void DrawLayerNameInputs(uint? owner, int type)
     {
         var scheme = LayerScheme.OfNamesType(session, type);
+        var list = owner == null ? -1 : session.FieldIndex(type, "layers");
         if (ImGui.BeginChild("name-slots", new Vector2(300, 300), ImGuiChildFlags.Borders))
         {
             for (var slot = 1; slot <= scheme.Slots; ++slot)
@@ -109,17 +111,17 @@ internal sealed partial class InspectorPanel
                 var text = "";
                 if (owner is { } entity)
                 {
-                    var list = session.FieldIndex(type, "layers");
                     var (item, count) = session.RecordInfo(entity, type, list);
                     var slotField = session.FieldIndex(item, "slot");
                     var index = Enumerable.Range(0, count).FirstOrDefault(i => session.GetRecord(entity, type, list, i, slotField).X == slot, -1);
                     if (index >= 0) text = session.GetRecordText(entity, type, list, index, session.FieldIndex(item, "name"));
                 }
                 else if (slot == 1) text = "Default";
-                if (LayerTyping.TryGetValue(slot, out var typing)) text = typing;
+                var key = (type, list, slot);
+                if (LayerTyping.TryGetValue(key, out var typing)) text = typing;
                 ImGui.SetNextItemWidth(235);
                 ImGui.InputText($"{slot}##name", ref text, 1024);
-                if (ImGui.IsItemActive()) LayerTyping[slot] = text; else LayerTyping.Remove(slot);
+                if (ImGui.IsItemActive()) LayerTyping[key] = text; else LayerTyping.Remove(key);
                 if (ImGui.IsItemDeactivatedAfterEdit())
                 {
                     RenameLayer(scheme, slot, text);

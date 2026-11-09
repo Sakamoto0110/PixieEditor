@@ -306,6 +306,19 @@ public sealed unsafe class EngineSession : IDisposable
         ArgumentNullException.ThrowIfNull(snapshot);
         if (BindingsReplacing != null)
             throw new EngineException("The authored scene can only be restored before editor bindings subscribe.");
+        RestoreAuthoredDocument(snapshot);
+    }
+
+    // A parenting history step uses the same World rebuild boundary as Play and Stop.
+    internal void RestoreParentingHistory(string snapshot)
+    {
+        if (!HasParenting || !Editing) throw new EngineException("Parenting history requires a version 3 scene in Edit mode.");
+        PrepareBindingsReplacement();
+        RestoreAuthoredDocument(snapshot);
+    }
+
+    private void RestoreAuthoredDocument(string snapshot)
+    {
         if (Encoding.UTF8.GetByteCount(snapshot) > 128 * 1024 * 1024 || snapshot.Contains('\0'))
             throw new ArgumentException("Invalid or oversized authored scene snapshot.", nameof(snapshot));
         Check(PixieCapi.ProjectRestore(Handle, snapshot), "restore the authored scene");
@@ -332,6 +345,33 @@ public sealed unsafe class EngineSession : IDisposable
 
     // The live entity with a scene ID, or null.
     public uint? Find(ulong id) => Found(PixieCapi.EntityFind(Handle, id, out var entity), "find an entity") ? entity : null;
+
+    internal bool HasParenting => GameLibrary.SupportsParenting && ProjectFolder != null && SceneFormatVersion == 3;
+
+    internal Dictionary<uint, uint> ParentLinks(IEnumerable<uint> entities)
+    {
+        var links = new Dictionary<uint, uint>();
+        if (!HasParenting) return links;
+        foreach (var entity in entities)
+        {
+            Check(PixieCapi.EntityParent2D(Handle, entity, out var parent), "read the parent link");
+            if (parent != uint.MaxValue) links.Add(entity, parent);
+        }
+        return links;
+    }
+
+    internal bool SetParents(IReadOnlyList<uint> children, uint? parent, bool keepLocal)
+    {
+        Edits.RequireMutation();
+        if (!HasParenting) throw new EngineException("Hierarchy edits require a version 3 scene and a parenting SDK.");
+        var selected = children.Distinct().ToArray();
+        fixed (uint* buffer = selected)
+        {
+            Check(PixieCapi.EntitiesSetParent2D(Handle, buffer, selected.Length, parent ?? uint.MaxValue,
+                keepLocal ? 1 : 0, out var changed), "edit the hierarchy");
+            return changed != 0;
+        }
+    }
 
     // Scene entities as text, to bring them back or copy them with Restore.
     public string Snapshot(IReadOnlyList<uint> entities)
@@ -690,6 +730,26 @@ public sealed unsafe class EngineSession : IDisposable
 
     public string FieldText(int type, int field, PixieFieldText which) =>
         ReadString((b, n) => PixieCapi.FieldText(Handle, type, field, (int)which, b, n), "read a field's text");
+
+    public string FieldGroup(int type, int field) => GameLibrary.SupportsFieldGroups
+        ? ReadString((b, n) => PixieCapi.FieldGroup(Handle, type, field, b, n), "read a field's group")
+        : "";
+
+    internal bool FieldLocked(uint entity, int type, int field)
+    {
+        if (!GameLibrary.SupportsAuthoringTools) return false;
+        Check(PixieCapi.FieldAuthoringLock(Handle, entity, type, field, out var locked), "read the project field lock");
+        return locked != 0;
+    }
+
+    internal readonly record struct AuthoringCircle(double X, double Y, double Radius, double Diameter);
+    internal AuthoringCircle? CircleGuide(uint entity)
+    {
+        if (!GameLibrary.SupportsAuthoringTools || !Editing) return null;
+        Check(PixieCapi.AuthoringCircle(Handle, entity, out var x, out var y, out var radius, out var diameter),
+            "read the project circle guide");
+        return radius > 0.0 ? new AuthoringCircle(x, y, radius, diameter) : null;
+    }
 
     public string EnumName(int type, int field, int value) =>
         ReadString((b, n) => PixieCapi.FieldEnumName(Handle, type, field, value, b, n), "read an enum name");
