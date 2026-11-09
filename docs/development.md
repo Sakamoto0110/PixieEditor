@@ -1,5 +1,7 @@
 # Develop PixieEditor
 
+[Documentation index](README.md) · [Launch options](launch-options.md)
+
 Open `Pixie.Workspace.slnf` at the Pixie workspace root in Visual Studio.
 It references `src/PixieEditor.csproj` through the workspace solution.
 Build a standalone checkout with `eng/build.ps1` and an installed SDK.
@@ -65,6 +67,15 @@ Use --import-layout with an absolute legacy file path to import it when no
 current layout exists. Development tests can supply an isolated --layout path.
 The capture runner accepts the private SDK and explicit project or module
 artifact. Legacy source fixtures must supply PIXIE_TEST_ENGINE_FIXTURE_ROOT.
+
+## Application assets
+
+The editor's icon, on its executable and its window, is the neko mark of the shared asset store
+(`vdr` alias `neko-purple-light`), copied into `src/assets/` with `vdr cp` under its curated
+name. The window takes its 32-bit frames as pixels through GLFW, so it shows on every host.
+
+Exact managed/native dependency selections belong to [DEPENDENCIES.md](../DEPENDENCIES.md)
+and the project/build manifests; this guide does not maintain a second version list.
 
 ## Documentation governance
 

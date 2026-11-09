@@ -5,6 +5,29 @@ remains independently readable. The Editor owns its code, public contracts,
 build, dependencies, versioning, release workflow and technical documentation.
 Installed SDK requirements are explicit product contracts, not sibling paths.
 
+## Authority and navigation
+
+The [documentation index](../README.md) routes the guides. Each fact has one
+owner; other documents summarize it and link to that owner.
+
+| Fact | Owner |
+|---|---|
+| Application entry point and overview | Root `README.md` |
+| Implemented behavior | `src/` and the selected SDK's contract |
+| Build properties, dependencies and artifact production | Project/build manifests and workflow definitions; `DEPENDENCIES.md` records dependency choices |
+| Product version | Root `version.json` |
+| Build, development and release procedures | `docs/development.md` |
+| Editor workflows and session contracts | Topic guides under `docs/` |
+| Public native API and SDK compatibility | The Engine SDK and Engine-owned references; no duplicate Editor API catalog |
+| Original source transfer | `docs/extraction-origin.md`, preserved at its recorded baseline |
+| Recorded results, decisions and limitations | Records routed by `docs/evidence/README.md` and their original evidence owners |
+| Shared governance and project profiles | Workspace configuration; machine-local bindings only route it |
+
+Existing `PIXIE-TODO-*` references identify work coordinated in PixieEngine.
+Keep those identities and their evidence; documentation migration does not
+transfer a queue or create a second task owner. ROADMAP/TODO/TASKLIST are
+created here only when accepted Editor-local work needs their respective roles.
+
 ## Scheduling: `TODO.md` and `TASKLIST.md`
 
 The workspace adopts ROADMAP -> TODO -> optional TASKLIST. ROADMAP owns the

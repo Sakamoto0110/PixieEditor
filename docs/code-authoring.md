@@ -20,3 +20,18 @@ Install Microsoft's C/C++ and CMake Tools extensions, then select **Pixie Editor
 installed SDK and CMake build plan. Keep the machine-local
 `CMakeUserPresets.json` out of version control. Conflicting user settings are
 preserved and reported when opening the file.
+
+Open code adds missing CMake Tools provider settings for the existing project.
+CMake supplies the compiler, language standard, includes and defines; the
+Editor does not guess Engine source locations.
+
+## Entity input and native contracts
+
+KeyboardControl/MouseControl are generic per-entity device components;
+KeyboardControl2D remains an explicit legacy adapter. The Engine owns the
+public input, callback and registration contract in
+`docs/entity-input-and-code-components.md`. Its API20 notes describe the
+original delivery; current builds must match the selected SDK. See
+[development](development.md) for binding and package inputs and
+[World/Scene authoring](world-and-scenes.md#scene-authoring) for candidate
+reconstruction, explicit conversion and code-reopen limitations.

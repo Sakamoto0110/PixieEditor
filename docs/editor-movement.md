@@ -201,13 +201,13 @@ hits after geometry edits. CharacterMotion2D exposes borrowed diagnostic state;
 reacquire after synchronization/removal. SceneMovementErrors2D returns owned
 diagnostic text. These APIs and authoring outlines/picking do not depend on C#.
 
-C API **version 12** adds named layer queries, layer editor metadata and value-type
-flags. Version 11 added reflected record lists and typed item access. Version 10
-added admission queries and singleton metadata; version 9 added movement diagnostics
-and Edit-mode gizmo picking/bounds.
-Rebuild game C API libraries before loading them into the updated editor. The
-scene format remains version 1: the new components are additive data, and old
-libraries retain unknown components through the existing compatibility rules.
+The [compatibility chronology](evidence/authoring-decisions-2026-11-06.md#movement-compatibility-chronology)
+records the original ABI9–12/v1 delivery. It is historical, not the current SDK
+admission rule. Use the selected SDK identity and the
+[development guide](development.md) for current build inputs. The
+[World/Scene guide](world-and-scenes.md#scene-authoring) owns explicit v1/v2
+conversion and candidate-module admission; existing v1 projects remain v1
+until conversion is requested.
 
 ## Named collision layers
 
@@ -234,6 +234,22 @@ before authoring names. Duplicate display names are allowed; slot numbers distin
 This delivers the naming/checkbox portion of PHY-011. The native query API still
 accepts explicit numeric filters and sensor inclusion. Motor filtering and full
 in-game query tooling are not added by this editor slice.
+
+## Scripted creation and layers
+
+The same authoring handlers accept `--do collider`, `character`, `dynamic`,
+`compoundbox`, `kinematic`, `sensor` and `world`. `compound` converts the
+selection, `addshape` appends a shape, `removeshape=<index>` removes one, and
+`shape=<index>:<field>:<value>` uses the descriptor-built control and displayed
+units, for example `shape=1:rotation:30`. `wait=<seconds>` delays subsequent
+commands while the session keeps running.
+
+Named-layer commands are `layername=slot:name`,
+`layer=category|mask:slot:true|false` and
+`shapelayer=zeroBasedShape:category|mask:slot:true|false`. These use the same
+authoring and checkbox paths and retain raw numeric save compatibility.
+See [launch options](launch-options.md) for command sequencing and
+[lighting authoring](lighting-authoring.md) for light handles and debug views.
 
 ## An editor inside the game
 
