@@ -13,6 +13,12 @@ checkout or a particular sibling-folder layout is not a normal build/runtime
 input. Start with the [documentation index](docs/README.md) for guides,
 contracts, recorded evidence and planning ownership.
 
+Workspace contributors can use the [Editor filesystem map](FILESYSTEM.md),
+[local roadmap](ROADMAP.md) and [accepted work](TODO.md) to find the Editor's
+contribution boundary. The [workspace entry](../../.governance/workplaces/void-workplace/README.md)
+routes shared governance and coordination; those documentation routes do not
+become build or runtime dependencies.
+
 ## Build and run
 
 Open `Pixie.Workspace.slnf` when working in the Pixie workspace, or build this
