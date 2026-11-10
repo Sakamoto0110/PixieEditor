@@ -5,6 +5,14 @@ remains independently readable. The Editor owns its code, public contracts,
 build, dependencies, versioning, release workflow and technical documentation.
 Installed SDK requirements are explicit product contracts, not sibling paths.
 
+The [Pixie workspace policy](../../../../.governance/workplaces/void-workplace/docs/governance/documentation-policy.md)
+is the adopted parent for shared constraints and coordination. Its applicable
+rules take precedence within that scope; Editor source, workflows, technical
+contracts and measured evidence retain their product owners. Local branch and
+release procedures remain specializations. Consuming an Engine SDK or Inspector
+contract does not make that peer the parent of unrelated Editor decisions.
+Unavailable inherited context is identified as unresolved, not silently waived.
+
 ## Authority and navigation
 
 The [documentation index](../README.md) routes the guides. Each fact has one
@@ -13,20 +21,27 @@ owner; other documents summarize it and link to that owner.
 | Fact | Owner |
 |---|---|
 | Application entry point and overview | Root `README.md` |
+| Filesystem ownership and focused reading routes | Root `FILESYSTEM.md` |
 | Implemented behavior | `src/` and the selected SDK's contract |
 | Build properties, dependencies and artifact production | Project/build manifests and workflow definitions; `DEPENDENCIES.md` records dependency choices |
 | Product version | Root `version.json` |
 | Build, development and release procedures | `docs/development.md` |
 | Editor workflows and session contracts | Topic guides under `docs/` |
+| Editor direction, local outcomes and acceptance criteria | Root `ROADMAP.md` |
+| Accepted Editor-local execution, dependencies and gates | Root `TODO.md`; optional `TASKLIST.md` decomposes large accepted items |
 | Public native API and SDK compatibility | The Engine SDK and Engine-owned references; no duplicate Editor API catalog |
 | Original source transfer | `docs/extraction-origin.md`, preserved at its recorded baseline |
 | Recorded results, decisions and limitations | Records routed by `docs/evidence/README.md` and their original evidence owners |
 | Shared governance and project profiles | Workspace configuration; machine-local bindings only route it |
 
-Existing `PIXIE-TODO-*` references identify work coordinated in PixieEngine.
-Keep those identities and their evidence; documentation migration does not
-transfer a queue or create a second task owner. ROADMAP/TODO/TASKLIST are
-created here only when accepted Editor-local work needs their respective roles.
+Existing `PIXIE-TODO-*` references retain their Engine-origin identities and
+original evidence owners. Current coordination ownership is established by the
+canonical parent and explicit transfer record, not inferred from a namespace.
+The local ROADMAP and TODO make the Editor contribution boundary explicit;
+their presence does not approve new Editor-native scope. A shared contribution
+identifies its parent and local responsibility. Pinned reference excerpts retain
+source coordinates and baseline digests, are nonauthoritative, and do not create
+a second scheduler. TASKLIST remains optional.
 
 ## Scheduling: `TODO.md` and `TASKLIST.md`
 
@@ -56,5 +71,12 @@ build proves interactive behavior. Existing extraction and qualification
 records retain their exact original scope. D09 remains frozen; this governance
 change does not authorize GLFW implementation, tests or publication.
 
-Planning files are created when accepted work needs them, not as empty mandatory
-scaffolding. Current development instructions remain in [the development guide](../development.md).
+Local planners distinguish approved product work from structural migration.
+Do not invent work to fill them or require an empty TASKLIST. Current development
+instructions remain in [the development guide](../development.md).
+
+The [filesystem map](../../FILESYSTEM.md) and local guides remain readable in a
+standalone checkout. Workspace catalogs and generated policy copies route to
+authored owners; machine-local bindings and prepared copies have no independent
+authored authority. Structural verification does not imply activation or a new
+product, package, runtime or publication result.

@@ -1,0 +1,39 @@
+{
+  "exclude": [
+    "external/*",
+    "docs/templates/*"
+  ],
+  "requiredDocuments": [
+    "README.md",
+    "FILESYSTEM.md",
+    "ROADMAP.md",
+    "TODO.md",
+    "docs/README.md",
+    "docs/governance/documentation-policy.md"
+  ],
+  "scopeId": "pixieeditor",
+  "scopes": [
+    {
+      "path": "../../.governance",
+      "optional": false,
+      "id": "void-workplace"
+    },
+    {
+      "path": "../PixieEngine",
+      "optional": false,
+      "id": "pixieengine"
+    },
+    {
+      "path": "../PixieInspector",
+      "optional": false,
+      "id": "pixieinspector"
+    },
+    {
+      "path": "../PixieLib",
+      "optional": false,
+      "id": "pixielib"
+    }
+  ],
+  "identityManifest": "../../.governance/workplaces/void-workplace/docs/governance/registry.json",
+  "identityBaseline": "../../.governance/workplaces/void-workplace/docs/governance/registry.b0-b5.json"
+}
