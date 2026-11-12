@@ -1,0 +1,52 @@
+name: G6 Inspector locked artifact
+
+on:
+  push:
+    branches: [codex/g6-inspector-artifact]
+
+permissions:
+  contents: read
+
+jobs:
+  relay:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Verify the qualified package bytes against the Editor lock
+        env:
+          CORE_A: ${{ secrets.G6_PAIR_20261112_CORE_A }}
+          CORE_B: ${{ secrets.G6_PAIR_20261112_CORE_B }}
+          IMGUI: ${{ secrets.G6_PAIR_20261112_IMGUI }}
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import base64
+          import hashlib
+          import json
+          import os
+          from pathlib import Path
+
+          version = "0.3.0-pixie021.3"
+          lock = json.loads(Path("src/packages.inspector-selected.lock.json").read_bytes())["dependencies"]["net10.0"]
+          packages = {
+              "PixieInspector": os.environ["CORE_A"] + os.environ["CORE_B"],
+              "PixieInspector.ImGui": os.environ["IMGUI"],
+          }
+          output = Path("g6-inspector")
+          output.mkdir()
+          for name, encoded in packages.items():
+              data = base64.b64decode(encoded, validate=True)
+              digest = hashlib.sha512(data).digest()
+              if lock[name]["resolved"] != version or base64.b64encode(digest).decode() != lock[name]["contentHash"]:
+                  raise SystemExit(f"Package lock mismatch: {name}")
+              (output / f"{name}.{version}.nupkg").write_bytes(data)
+              print(f"{name} {version} SHA512={digest.hex()}")
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: pixie-inspector-0.3.0-pixie021.3
+          path: g6-inspector/*.nupkg
+          if-no-files-found: error
+          retention-days: 30
