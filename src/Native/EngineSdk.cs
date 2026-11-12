@@ -28,6 +28,7 @@ internal sealed class EngineSdk
     public string Origin { get; }
     public string RuntimePath { get; }
     public string RuntimeSha256 { get; }
+    internal Payload? Glfw { get; }
     public JsonElement Identity { get; }
     public ulong CapabilityBits { get; }
     internal ExportTool? Exporter { get; }
@@ -35,7 +36,7 @@ internal sealed class EngineSdk
     public string Summary => $"PixieEngine {ProductVersion} · {Profile} · {Configuration}";
 
     private EngineSdk(string root, string manifestHash, JsonElement manifest, JsonElement profile,
-        string profileHash, string origin, ExportTool? exporter, ProjectSupport? generation)
+        string profileHash, string origin, ExportTool? exporter, ProjectSupport? generation, Payload? glfw)
     {
         Root = root; ManifestSha256 = manifestHash; Id = Text(manifest, "sdkId");
         BuildId = Text(profile, "sdkBuildId"); ProductVersion = Text(manifest, "productVersion");
@@ -47,6 +48,7 @@ internal sealed class EngineSdk
         CapabilityBits = Bits(profile.GetProperty("capabilities"));
         Exporter = exporter;
         Generation = generation;
+        Glfw = glfw;
     }
 
     // Explicit launch/environment input never falls through to a remembered UI preference.
@@ -145,8 +147,19 @@ internal sealed class EngineSdk
 #endif
         if (expectedBuildId != null && Text(chosen.Value, "sdkBuildId") != expectedBuildId)
             throw new EngineException("The selected SDK build changed across the Editor restart.");
+        Payload? glfw = null;
+        if (WindowsGlfw.Applies)
+        {
+            var path = $"profiles/{selectedProfile}/{configuration}/bin/glfw3.dll";
+            var matches = chosen.Value.GetProperty("nativeDependencies").EnumerateArray()
+                .Where(entry => Text(entry, "path") == path).ToArray();
+            if (matches.Length != 1)
+                throw new EngineException("The selected SDK does not declare exactly one Windows x64 GLFW provider.");
+            CheckReference(matches[0], root, files, ".dll");
+            glfw = files[path];
+        }
         return new(root, manifestHash, manifest, chosen.Value, chosenHash!, origin,
-            ReadExporter(root, manifest, shipping, files), ReadProjectSupport(root, manifest, files));
+            ReadExporter(root, manifest, shipping, files), ReadProjectSupport(root, manifest, files), glfw);
     }
 
     private static ProjectSupport? ReadProjectSupport(string root, JsonElement manifest, IReadOnlyDictionary<string, Payload> files)
@@ -248,7 +261,7 @@ internal sealed class EngineSdk
         var relative = Text(reference, "path"); HashText(reference, "sha256");
         if (!files.TryGetValue(relative, out var file) || file.Sha256 != Text(reference, "sha256") ||
             !Path.GetExtension(CheckedPath(root, relative)).Equals(extension, StringComparison.OrdinalIgnoreCase))
-            throw new EngineException("A profile runtime/player does not match the declared inventory.");
+            throw new EngineException($"A profile binary does not match the declared inventory: {relative}");
     }
 
     internal static void ValidateIdentity(JsonElement identity)

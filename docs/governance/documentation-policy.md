@@ -68,8 +68,8 @@ actual execution and limitations; a structural check cannot accept a product gat
 Record actual source/version, environment, scenario, result and limitations.
 Reference evidence from closure records without copying logs or claiming that a
 build proves interactive behavior. Existing extraction and qualification
-records retain their exact original scope. D09 remains frozen; this governance
-change does not authorize GLFW implementation, tests or publication.
+records retain their exact original scope. The current GLFW distribution
+contract is recorded in [Dependencies](../../DEPENDENCIES.md).
 
 Local planners distinguish approved product work from structural migration.
 Do not invent work to fill them or require an empty TASKLIST. Current development

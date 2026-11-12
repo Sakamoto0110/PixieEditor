@@ -1,23 +1,28 @@
 <Project>
   <PropertyGroup>
-    <_PixieGlfwSource>$(MSBuildThisFileDirectory)../eng/native/win-x64</_PixieGlfwSource>
     <_PixieGlfwWinX64 Condition="'$(RuntimeIdentifier)' == 'win-x64' Or ('$(RuntimeIdentifier)' == '' And '$(OS)' == 'Windows_NT')">true</_PixieGlfwWinX64>
   </PropertyGroup>
 
   <ItemGroup Condition="'$(_PixieGlfwWinX64)' == 'true'">
-    <None Include="$(_PixieGlfwSource)/LICENSE.md" Link="licenses/glfw.txt"
-          CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+    <None Include="$(PixieBuildSdkRoot)/notices/glfw/LICENSE.md" Link="licenses/glfw.txt"
+          CopyToOutputDirectory="Always" CopyToPublishDirectory="Always" />
   </ItemGroup>
 
-  <Target Name="BuildPixieEditorGlfw" Condition="'$(_PixieGlfwWinX64)' == 'true'">
+  <Target Name="VerifyPixieEditorGlfw" Condition="'$(_PixieGlfwWinX64)' == 'true'"
+          DependsOnTargets="ValidatePixieEditorBuildSdk">
     <PropertyGroup>
-      <_PixieGlfwDll>$([System.IO.Path]::GetFullPath('$(_PixieGlfwSource)/glfw3.dll'))</_PixieGlfwDll>
+      <_PixieGlfwProfile>authoring</_PixieGlfwProfile>
+      <_PixieGlfwProfile Condition="'$(PixieDevelopmentTools)' == 'true'">local-development</_PixieGlfwProfile>
+      <_PixieGlfwDll>$([System.IO.Path]::GetFullPath('$(PixieBuildSdkRoot)/profiles/$(_PixieGlfwProfile)/$(Configuration)/bin/glfw3.dll'))</_PixieGlfwDll>
     </PropertyGroup>
-    <VerifyFileHash File="$(_PixieGlfwDll)" Hash="a070f1a082dd95ddf22ca8a1fca169aa34fa39b4cbcd8a9257003446cc80733b" />
+    <Exec Command="&quot;$(SystemRoot)\System32\WindowsPowerShell\v1.0\powershell.exe&quot; -NoProfile -NonInteractive -ExecutionPolicy RemoteSigned -File &quot;$(MSBuildThisFileDirectory)../eng/VerifySdkGlfw.ps1&quot; -SdkRoot &quot;$(PixieBuildSdkRoot)&quot; -CatalogSha256 $(PixieBuildSdkCatalogSha256) -Profile $(_PixieGlfwProfile) -Configuration $(Configuration)"
+          ConsoleToMSBuild="true" StandardOutputImportance="Low">
+      <Output TaskParameter="ConsoleOutput" PropertyName="_PixieGlfwSha256" />
+    </Exec>
   </Target>
 
   <Target Name="SelectPixieEditorGlfw" BeforeTargets="ResolveLockFileCopyLocalFiles"
-          DependsOnTargets="ResolvePackageAssets;BuildPixieEditorGlfw"
+          DependsOnTargets="ResolvePackageAssets;VerifyPixieEditorGlfw"
           Condition="'$(_PixieGlfwWinX64)' == 'true' And '$(DesignTimeBuild)' != 'true'">
     <!-- Retain the package's RID and destination metadata so the normal .NET loader finds our DLL. -->
     <ItemGroup>
@@ -32,14 +37,32 @@
            Text="The PixieEditor build could not identify the Hexa.NET.GLFW Windows x64 native asset to replace." />
   </Target>
 
-  <Target Name="SelectPixieEditorGlfwForPublish" AfterTargets="_ResolveCopyLocalAssetsForPublish"
-          Condition="'$(_PixieGlfwWinX64)' == 'true' And '$(_PixieGlfwDll)' != ''">
-    <!-- Store-layout publishes can resolve package assets again instead of reusing the build assets. -->
+  <Target Name="VerifyPixieEditorGlfwOutput" AfterTargets="CopyFilesToOutputDirectory"
+          Condition="'$(_PixieGlfwDll)' != ''">
     <ItemGroup>
-      <_PixieGlfwPublishAsset Include="@(_ResolvedCopyLocalPublishAssets)"
-          Condition="'%(_ResolvedCopyLocalPublishAssets.NuGetPackageId)' == 'Hexa.NET.GLFW' And '%(_ResolvedCopyLocalPublishAssets.PathInPackage)' == 'runtimes/win-x64/native/glfw3.dll'" />
-      <_ResolvedCopyLocalPublishAssets Remove="@(_PixieGlfwPublishAsset)" />
-      <_ResolvedCopyLocalPublishAssets Include="@(_PixieGlfwPublishAsset->'$(_PixieGlfwDll)')" />
+      <_PixieGlfwOutput Include="@(_PixieGlfwRuntimeTarget->'$(OutDir)%(DestinationSubDirectory)glfw3.dll');@(_PixieGlfwNativeAsset->'$(OutDir)%(DestinationSubDirectory)glfw3.dll')" />
     </ItemGroup>
+    <Copy SourceFiles="$(_PixieGlfwDll)" DestinationFiles="%(_PixieGlfwOutput.Identity)"
+          Condition="'@(_PixieGlfwOutput)' != ''" />
+    <VerifyFileHash File="%(_PixieGlfwOutput.Identity)" Hash="$(_PixieGlfwSha256)"
+                    Condition="'@(_PixieGlfwOutput)' != ''" />
+  </Target>
+
+  <Target Name="SelectPixieEditorGlfwForPublish" AfterTargets="ComputeFilesToPublish"
+          DependsOnTargets="VerifyPixieEditorGlfw"
+          Condition="'$(_PixieGlfwWinX64)' == 'true'">
+    <ItemGroup>
+      <_PixieGlfwPublishAsset Include="@(ResolvedFileToPublish)"
+          Condition="'%(ResolvedFileToPublish.Filename)%(ResolvedFileToPublish.Extension)' == 'glfw3.dll' And ('%(ResolvedFileToPublish.RelativePath)' == 'glfw3.dll' Or '%(ResolvedFileToPublish.RelativePath)' == 'runtimes/win-x64/native/glfw3.dll' Or '%(ResolvedFileToPublish.RelativePath)' == 'runtimes\win-x64\native\glfw3.dll')" />
+      <ResolvedFileToPublish Remove="@(_PixieGlfwPublishAsset)" />
+      <ResolvedFileToPublish Include="@(_PixieGlfwPublishAsset->'$(_PixieGlfwDll)')" CopyToPublishDirectory="Always" />
+    </ItemGroup>
+    <Error Condition="'@(_PixieGlfwPublishAsset->Count())' != '1'"
+           Text="The PixieEditor publish must contain exactly one Windows x64 GLFW provider." />
+  </Target>
+
+  <Target Name="VerifyPixieEditorGlfwPublish" AfterTargets="CopyFilesToPublishDirectory"
+          Condition="'@(_PixieGlfwPublishAsset)' != ''">
+    <VerifyFileHash File="$(PublishDir)%(_PixieGlfwPublishAsset.RelativePath)" Hash="$(_PixieGlfwSha256)" />
   </Target>
 </Project>

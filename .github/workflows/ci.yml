@@ -24,6 +24,12 @@ on:
         description: Trusted SHA-256 of sdk.json
         required: true
         type: string
+      sdk_release_tag:
+        description: Optional public mirror of the exact approved run inputs
+        type: string
+      sdk_receipt_sha256:
+        description: Trusted run receipt hash, required with the public mirror
+        type: string
       inspector_repository:
         description: Repository that owns the approved Inspector package artifact
         required: true
@@ -39,6 +45,7 @@ on:
 
 permissions:
   contents: read
+  actions: read
 
 jobs:
   editor:
@@ -54,6 +61,7 @@ jobs:
         with:
           python-version: "3.12"
       - name: Download Engine release inputs
+        if: inputs.sdk_release_tag == ''
         uses: actions/download-artifact@v4
         with:
           github-token: ${{ secrets.PIXIE_SDK_ARTIFACT_TOKEN }}
@@ -61,10 +69,36 @@ jobs:
           run-id: ${{ inputs.sdk_run }}
           name: ${{ inputs.sdk_artifact }}
           path: ${{ runner.temp }}/pixie-engine-assets
+      - name: Download the byte-identical public mirror of the Engine run
+        if: inputs.sdk_release_tag != ''
+        shell: pwsh
+        env:
+          PIXIE_ENGINE_REPOSITORY: ${{ inputs.sdk_repository }}
+          PIXIE_ENGINE_TAG: ${{ inputs.sdk_release_tag }}
+          PIXIE_ENGINE_RUN: ${{ inputs.sdk_run }}
+          PIXIE_ENGINE_RECEIPT_SHA256: ${{ inputs.sdk_receipt_sha256 }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          if ($env:PIXIE_ENGINE_REPOSITORY -cnotmatch '^[a-zA-Z0-9_.-]+/[a-zA-Z0-9_.-]+$' -or
+              $env:PIXIE_ENGINE_TAG -cnotmatch '^v\d+\.\d+\.\d+\.\d+$' -or
+              $env:PIXIE_ENGINE_RUN -cnotmatch '^\d+$' -or
+              $env:PIXIE_ENGINE_RECEIPT_SHA256 -cnotmatch '^[0-9a-f]{64}$') {
+            throw 'Supply a public Engine tag and the approved run receipt SHA-256.'
+          }
+          $download = "https://github.com/$env:PIXIE_ENGINE_REPOSITORY/releases/download/$env:PIXIE_ENGINE_TAG"
+          $target = New-Item -ItemType Directory (Join-Path $env:RUNNER_TEMP 'pixie-engine-assets')
+          $receipt = Join-Path $target.FullName 'release.json'
+          Invoke-WebRequest "$download/release.json" -OutFile $receipt
+          if ((Get-FileHash -LiteralPath $receipt).Hash -ine $env:PIXIE_ENGINE_RECEIPT_SHA256) {
+            throw "Public receipt does not match Engine run $env:PIXIE_ENGINE_RUN."
+          }
+          $version = $env:PIXIE_ENGINE_TAG.Substring(1)
+          $sdk = "PixieEngine-SDK-$version-windows-x64.zip"
+          Invoke-WebRequest "$download/$sdk" -OutFile (Join-Path $target.FullName $sdk)
       - name: Download the approved Inspector pair
         uses: actions/download-artifact@v4
         with:
-          github-token: ${{ secrets.PIXIE_SDK_ARTIFACT_TOKEN }}
+          github-token: ${{ inputs.inspector_repository == github.repository && github.token || secrets.PIXIE_SDK_ARTIFACT_TOKEN }}
           repository: ${{ inputs.inspector_repository }}
           run-id: ${{ inputs.inspector_run }}
           name: ${{ inputs.inspector_artifact }}

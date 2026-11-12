@@ -95,11 +95,6 @@
           "sourceReference": "https://github.com/google/brotli/blob/ed738e842d2fbdf2d6459e39267a633c4a9b2f5d/c/common/dictionary.bin"
         }
       }
-    },
-    "glfw3.dll": {
-      "sha256": "a070f1a082dd95ddf22ca8a1fca169aa34fa39b4cbcd8a9257003446cc80733b",
-      "provider": "Existing PixieEditor GLFW 3.5.1 pin",
-      "notice": "LICENSE.md"
     }
   },
   "notices": {

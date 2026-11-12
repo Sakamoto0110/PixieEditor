@@ -121,7 +121,7 @@ def prepare_feed(feed, upstream, work, dependencies):
     return config_path
 
 
-def stage_editor(publish, stage, sdk, shipping, packages, dependencies):
+def stage_editor(publish, stage, sdk, authoring, shipping, packages, dependencies):
     for file in sorted(publish.rglob("*")):
         relative = file.relative_to(publish)
         if not file.is_file() or file.suffix == ".pdb":
@@ -152,6 +152,14 @@ def stage_editor(publish, stage, sdk, shipping, packages, dependencies):
 
     provenance = json.loads((NATIVE / "release-provenance.json").read_bytes())
     native = stage / "runtimes/win-x64/native"
+    glfw_path = "profiles/authoring/Release/bin/glfw3.dll"
+    glfw = [entry for entry in authoring["nativeDependencies"] if entry["path"] == glfw_path]
+    require(len(glfw) == 1 and sha(sdk / glfw_path) == glfw[0]["sha256"], "SDK GLFW provider mismatch")
+    provenance["binaries"]["glfw3.dll"] = {
+        "sha256": glfw[0]["sha256"], "provider": "PixieEngine SDK",
+        "sdkPath": glfw_path, "sdkBuildId": authoring["sdkBuildId"],
+        "sdkCatalogSha256": sha(sdk / "sdk.json"), "notice": "licenses/glfw.txt",
+    }
     require({file.name for file in native.iterdir()} == provenance["binaries"].keys(), "Unexpected Windows x64 native inventory")
     for name, entry in provenance["binaries"].items():
         require(sha(native / name) == entry["sha256"], f"Native Editor payload changed: {name}")
@@ -159,8 +167,8 @@ def stage_editor(publish, stage, sdk, shipping, packages, dependencies):
         source = NATIVE / relative
         require(sha(source) == expected, f"Native notice changed: {relative}")
         shutil.copyfile(source, licenses / source.name)
-    shutil.copyfile(NATIVE / "release-provenance.json", stage / "native-provenance.json")
-    require(sha(licenses / "glfw.txt") == sha(NATIVE / "LICENSE.md"), "Pinned GLFW notice mismatch")
+    require(sha(licenses / "glfw.txt") == sha(sdk / "notices/glfw/LICENSE.md"), "SDK GLFW notice mismatch")
+    write_json(stage / "native-provenance.json", provenance)
     require((stage / "PixieEditor.exe").is_file(), "Editor apphost missing")
 
 
@@ -231,7 +239,8 @@ def main():
                     "-InspectorPackageVersion", PAIR, "-NuGetConfig", config,
                     "-Locked", "-PublishDirectory", publish], cwd=ROOT, env=env, check=True)
     stage = work / "stage"
-    stage_editor(publish, stage, sdk, shipping, packages, dependencies)
+    authoring = json.loads((sdk / "profiles/authoring/Release/profile.json").read_bytes())
+    stage_editor(publish, stage, sdk, authoring, shipping, packages, dependencies)
     pack(stage, work / "assets", receipt, sdk, dependencies)
 
 
