@@ -39,6 +39,8 @@ internal sealed partial class InspectorPanel(EngineSession session, Authoring au
     private string NewCodeName = "";
     private string? CodeProblem;
 
+    /// <summary>Generates component files and queues their registration and attachment for reopen.</summary>
+    /// <remarks>The request carries the authored scene IDs of the selected targets.</remarks>
     internal bool CreateCodeComponent(string name)
     {
         if (session.ProjectFolder == null || !session.Editing || Entities.Length == 0)
@@ -478,6 +480,7 @@ internal sealed partial class InspectorPanel(EngineSession session, Authoring au
         return new PxColorRgba(parts[0], parts[1], parts[2], parts.Length > 3 ? parts[3] : (byte)255);
     }
 
+    // A new target, component set, or binding revision invalidates the cached node and view state.
     private void Rebuild(uint[] entities, int[] types)
     {
         if (BoundRevision == session.BindingRevision) recorder.Close();

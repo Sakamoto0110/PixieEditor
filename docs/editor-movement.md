@@ -27,15 +27,16 @@ The editor and generic player now use this additional scene layer automatically.
 
 ## Using the editor
 
-Open the movement-lab project (PixieEngine samples/movement-lab/README.md) without adding
-game code. In the Entities panel, **Collider** creates a visible static box and
-**Character** creates a motor with keyboard control and a placeholder visual.
-The empty-space viewport menu also offers **New collider here** and **New
-character here**. Each creation is one undoable step, including its components.
+Open the Engine movement-lab project without adding game code. Its saved
+character uses the legacy KeyboardControl2D mapping. In **Entities > + Create**,
+choose **Static obstacle** for a visible static collider or **Character motor starter**
+for a motor, generic KeyboardControl and a placeholder visual. The starter needs
+game code to submit motor commands. The empty-space viewport menu also offers
+**New collider here** and **New character here**. Each preset creation records
+one history step.
 
-The **Physics...** menu (also under the viewport's **Physics** submenu) adds a
-static obstacle, dynamic box, compound box, kinematic platform, sensor region, character or
-world settings. A dynamic box already has Collider2D and RigidBody2D; a platform
+The **+ Create** popup and the viewport's **Physics** submenu offer the physics
+presets. **Dynamic box** includes Collider2D and RigidBody2D. A platform
 starts with a 40 units/s horizontal velocity. A sensor is a nonblocking static
 region. World settings selects the existing settings entity when one exists.
 These presets configure the normal native components; they add no separate simulation.
@@ -56,8 +57,8 @@ fields use 31 nonnegative bits, matching the existing integer inspector.
 Collider **size X/Y** shows full width/height; the saved `halfSize` values remain
 half extents, preserving old geometry. Drawable Shape size is still independent.
 
-Press **Play**, click the viewport for focus and use A/D or arrows and Space.
-KeyboardControl2D is optional; without it, the motor still simulates gravity but
+In the movement-lab, press **Play**, choose **Game input**, focus the viewport
+and use A/D or arrows and Space. KeyboardControl2D is optional; without it, the motor still simulates gravity but
 game code supplies movement through CharacterCommand2D. The placeholder Shape
 is a rectangle; the green Edit outline shows the actual capsule. This is a
 mechanical test scene, not final character art or accepted movement feel.
@@ -151,11 +152,16 @@ body rather than presenting one body's values as a shared result.
 
 ## Compound bodies
 
-**Physics... > Compound box** creates one dynamic body with CompoundCollider2D.
+**Entities > + Create > Compound box** creates one dynamic body with CompoundCollider2D.
 For existing geometry, use **Make compound** in Collider2D: the saved collider,
 including unknown fields, becomes the first shape. RigidBody2D and drawable data
-are retained. Conversion is one undoable operation. Collider2D and CompoundCollider2D
-cannot coexist; the native admission query explains the conversion workflow.
+are retained. The collider replacement is recorded as one history step. Collider2D
+and CompoundCollider2D cannot coexist. The native admission query explains the workflow.
+
+On the retained v3 baseline, **Make compound** on a selected Collider2D parent can
+detach an unselected child. Undo restores the original collider and leaves the
+child detached. The child kept its stable ID and world pose in the observed case.
+[Compound conversion diagnostic](history/documentation-refresh.md#compound-conversion-diagnostic)
 
 Expand each **Shape** under CompoundCollider2D to edit the normal Collider2D
 descriptor fields. **Add shape** appends a default box; the shape header's close
@@ -189,11 +195,13 @@ generic player therefore run authored components without sample-only setup.
 No Box2D scene is allocated when no movement/collider components exist.
 
 PreUpdate synchronization provides a collider snapshot to game code. The
-PostUpdate movement system refreshes changed geometry again after ordinary
-velocity integration, then moves characters. Direct authored edits, removal,
+Physics phase runs the scene movement service after ordinary velocity integration.
+The service refreshes changed geometry before solving bodies and moving characters.
+Direct authored edits, removal,
 entity reuse and reload are handled by the native layer. Motor retuning keeps
 motion; externally changing its position teleports and clears runtime commands.
 Edit synchronization validates/configures components but advances no time.
+[Engine movement contract](https://github.com/Sakamoto0110/PixieEngine/blob/ac48e01ed040ee607662e6cdf1f4ff9742c4b0f4/docs/modules/runtime/REFERENCE.md#authored-scene-movement)
 
 SceneCollisionWorld2D exposes a borrowed read-only query view of the last sync;
 SceneColliderEntity2D maps a current collider hit back to an entity. Reacquire
@@ -206,8 +214,9 @@ records the original ABI9–12/v1 delivery. It is historical, not the current SD
 admission rule. Use the selected SDK identity and the
 [development guide](development.md) for current build inputs. The
 [World/Scene guide](world-and-scenes.md#scene-authoring) owns explicit v1/v2
-conversion and candidate-module admission; existing v1 projects remain v1
-until conversion is requested.
+conversion and candidate-module admission. Existing v1 projects remain v1
+until conversion is requested. Authored hierarchy has a separate
+[v3 route](world-and-scenes.md#entity-parenting).
 
 ## Named collision layers
 
@@ -231,9 +240,11 @@ can be removed from the configuration inspector. Unknown saved fields stay attac
 to their original name record. An imported duplicate configuration must be removed
 before authoring names. Duplicate display names are allowed; slot numbers distinguish them.
 
-This delivers the naming/checkbox portion of PHY-011. The native query API still
-accepts explicit numeric filters and sensor inclusion. Motor filtering and full
-in-game query tooling are not added by this editor slice.
+The PHY-011 Editor slice delivered named collision checkboxes for Collider2D
+and individual compound shapes. Motor filter controls and full in-game query
+tooling were outside that slice. The native `CharacterMotor2D` has `category`
+and `mask` fields. The native query API accepts explicit numeric filters and
+sensor inclusion. [Engine movement contract](https://github.com/Sakamoto0110/PixieEngine/blob/ac48e01ed040ee607662e6cdf1f4ff9742c4b0f4/docs/modules/runtime/REFERENCE.md#authored-scene-movement)
 
 ## Scripted creation and layers
 

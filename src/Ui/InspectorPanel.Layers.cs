@@ -9,6 +9,8 @@ internal sealed partial class InspectorPanel
 {
     private readonly Dictionary<(int Type, int List, int Slot), string> LayerTyping = [];
 
+    // Layer slots are one-based in the UI and map to bits at slot minus one. Mixed selections
+    // read each target's mask so a checkbox changes only its bit on each target.
     private void DrawLayerMasks(int type, ComponentHandle[] handles, int[]? fields = null)
     {
         foreach (var field in fields ?? Enumerable.Range(0, session.FieldCount(type)))

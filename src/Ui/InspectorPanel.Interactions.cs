@@ -48,6 +48,8 @@ internal sealed partial class InspectorPanel
         OpenBranches.Values.Any(binding => binding?.HasLocalInteraction == true);
     private bool HasLocalInteraction => Sections.Any(s => s.View.IsEditing) || RecordSections.Values.Any(s => s.View.IsEditing);
 
+    // PixieInspector owns the chain and lock gesture. The recorder snapshots record targets before
+    // the first write and closes over observed changes when the interaction finishes.
     private unsafe void ConfigureInteraction(ImGuiInspectorView view)
     {
         if (!InteractionSubscribed)

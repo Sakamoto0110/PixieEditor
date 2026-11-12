@@ -132,6 +132,8 @@ internal sealed class ProjectBuild : IDisposable
             throw new EngineException("The project build cache is unowned. Its existing files were preserved.");
     }
 
+    /// <summary>Plans an authoring module build against the selected installed SDK.</summary>
+    /// <remarks>The cache and output are scoped to the project, SDK identity, role, and configuration.</remarks>
     internal static BuildPlan Prepare(string folder, EngineSdk sdk, Func<string?>? discovery = null, string? temporaryRoot = null)
     {
         try

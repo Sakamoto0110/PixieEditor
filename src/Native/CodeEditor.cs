@@ -3,6 +3,12 @@ using System.Diagnostics;
 
 namespace PixieEditor.Native;
 
+/// <summary>Discovers VS Code and opens a validated project source in its workspace.</summary>
+/// <remarks>
+/// Windows checks the default user and system installations before PATH, including the executable
+/// behind a PATH wrapper. IDE setup uses the existing CMake build. An IDE setup error can be returned
+/// as a notice after a successful launch.
+/// </remarks>
 internal static class CodeEditor
 {
     internal static ProcessStartInfo StartInfo(string executable, string folder, string source)

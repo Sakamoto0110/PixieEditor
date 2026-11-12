@@ -11,7 +11,7 @@ routes shared context without copying technical contracts into this repository.
 
 | Guide | Question it answers |
 |---|---|
-| [First-game walkthrough](handbook.md) | How do I complete the first project/code/play/export loop through Computer Use? |
+| [First-game walkthrough](handbook.md) | How do I save a first project, build C++ code, Play/Stop and export? |
 | [Projects and everyday authoring](projects.md) | How do I create/open a project, edit, save, use history and Play/Stop? |
 | [C++ component authoring](code-authoring.md) | How do I add code, open it, rebuild and reopen without losing authored changes? |
 | [World, Scenes and presentation](world-and-scenes.md) | How do scopes, conversion, World properties, cameras and recovery behave? |
@@ -20,10 +20,20 @@ routes shared context without copying technical contracts into this repository.
 | [Field chains and manual locks](editor-field-interactions.md) | Which Inspector modes support interactions, and what are their history/lifetime limits? |
 | [Launch options](launch-options.md) | Which explicit SDK, project, layout and scripted-editing inputs are supported? |
 
+| Task | Exact section |
+|---|---|
+| Create component source and rebuild while carrying authored state forward | [C++ component authoring](code-authoring.md#c-component-authoring) |
+| Recover Editor bindings after a candidate World is published | [Session publication and recovery](world-and-scenes.md#session-publication-and-recovery) |
+| Work with v3 parent links | [Entity parenting](world-and-scenes.md#entity-parenting) |
+| Check the v3 compound conversion limitation | [Compound bodies](editor-movement.md#compound-bodies) |
+| Export a saved project and find the log | [Export from the menu](handbook.md#6-export-from-the-menu-and-launch-the-player) |
+| Trace a reflected component into the Inspector | [Descriptors and Inspector fields](architecture.md#descriptors-and-inspector-fields) |
+
 ## Develop and integrate
 
 | Guide | Responsibility |
 |---|---|
+| [Architecture](architecture.md) | SDK admission, World replacement, reflected fields, code reopening and export ownership |
 | [Development](development.md) | Build against an installed SDK, select profiles, restore packages and prepare a release |
 | [Private development channel](development-channel.md) | Local automation, capability boundaries, receipt semantics and qualification inputs |
 | [Dependencies](../DEPENDENCIES.md) | Selected Inspector/native dependencies; manifests own exact wiring |

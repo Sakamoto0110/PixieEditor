@@ -30,6 +30,9 @@ For the Inspector qualification baseline, supply the sealed offline feed and
 set PixieInspectorPackageVersion to 0.3.0-pixie021.3. The normal restore uses
 PixieInspector.ImGui 0.3.0.
 
+For the Editor-to-SDK boundaries in a live session, see the
+[architecture guide](architecture.md#project-admission-and-world-replacement).
+
 ## Rehearse the Windows x64 release
 
 Supply the Engine workflow artifact directory containing `release.json` and

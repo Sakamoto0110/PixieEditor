@@ -5,7 +5,11 @@ using System.Diagnostics;
 
 namespace PixieEditor.Native;
 
-// CMake owns compiler settings. This only connects the IDE to the editor's existing build.
+/// <summary>Connects VS Code CMake Tools to an existing Editor project build.</summary>
+/// <remarks>
+/// CMake owns compiler settings. Preparation reads the configured cache, supplies missing workspace
+/// settings and the pixie-editor-local user preset, and refuses incompatible existing configuration.
+/// </remarks>
 internal static class CodeWorkspace
 {
     internal const string PresetName = "pixie-editor-local";

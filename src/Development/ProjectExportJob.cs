@@ -2,7 +2,8 @@ using System.Diagnostics;
 
 namespace PixieEditor.Native;
 
-// The native CLI owns building, manifest creation, copying and validation. The editor only launches it.
+/// <summary>Runs one native exporter at a time and retains the latest 512 output lines.</summary>
+/// <remarks>The native CLI owns building, manifest creation, copying, and validation.</remarks>
 internal sealed class ProjectExportJob : IDisposable
 {
     private readonly object Gate = new();
@@ -23,6 +24,11 @@ internal sealed class ProjectExportJob : IDisposable
         lock (Gate) { Output.Enqueue(text); while (Output.Count > 512) Output.Dequeue(); }
         Console.Error.WriteLine(text);
     }
+    /// <summary>Prepares the verified paired exporter invocation with an explicit SDK root.</summary>
+    /// <remarks>
+    /// A code project also needs compatible SDK requirements and CMake. Its shipping-export work
+    /// directory is distinct from the Editor's module build cache.
+    /// </remarks>
     internal static ProcessStartInfo CreateLaunch(EngineSdk sdk, string folder, string output,
         Func<string?>? discoverCMake = null, string? temporaryRoot = null)
     {
@@ -47,6 +53,8 @@ internal sealed class ProjectExportJob : IDisposable
         return start;
     }
 
+    /// <summary>Starts background launch and returns false if busy or disposed.</summary>
+    /// <remarks>Launch failures and nonzero exit codes appear in the job's completion state and log.</remarks>
     public bool Start(EngineSdk sdk, string folder, string output)
     {
         lock (Gate)
@@ -78,6 +86,7 @@ internal sealed class ProjectExportJob : IDisposable
         });
         return true;
     }
+    /// <summary>Prevents further launches and attempts to stop the active exporter process tree.</summary>
     public void Dispose()
     {
         lock (Gate)

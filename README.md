@@ -6,12 +6,13 @@ projects, edits scenes and C++ components, and exports games through an
 explicitly selected installed Engine SDK. The native viewport uses OpenGL 4.5 core.
 
 **Making your first game? Follow the [Editor walkthrough](docs/handbook.md)**
-alongside the PixieEngine consumer handbook supplied with your SDK documentation.
+alongside the [PixieEngine SDK setup guide](https://github.com/Sakamoto0110/PixieEngine/blob/ac48e01ed040ee607662e6cdf1f4ff9742c4b0f4/docs/handbook/setup.md#obtain-the-inputs).
 
 The Editor owns its source, build, dependencies and version. An Engine source
 checkout or a particular sibling-folder layout is not a normal build/runtime
 input. Start with the [documentation index](docs/README.md) for guides,
-contracts, recorded evidence and planning ownership.
+contracts, recorded evidence and planning ownership. The [architecture guide](docs/architecture.md)
+traces Editor and native SDK responsibilities through a project session.
 
 Workspace contributors can use the [Editor filesystem map](FILESYSTEM.md),
 [local roadmap](ROADMAP.md) and [accepted work](TODO.md) to find the Editor's

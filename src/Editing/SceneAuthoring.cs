@@ -7,7 +7,11 @@ using PixieEditor.Ui;
 
 namespace PixieEditor.Editing;
 
-// Serial document commands. UI intents carry authored IDs, never native entity handles.
+/// <summary>Queues Scene membership and presentation commands for serial document editing.</summary>
+/// <remarks>
+/// Intents carry authored IDs. They wait for active gestures to finish and expire if the project
+/// edit token or history revision changes before processing.
+/// </remarks>
 internal sealed class SceneAuthoring(EngineSession session, Selection selection, History history, SceneDocumentEditor editor)
 {
     private sealed record Intent(string Command, ulong Scope, string Name, ulong[] Entities,

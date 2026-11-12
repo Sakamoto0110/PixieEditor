@@ -4,6 +4,8 @@ namespace PixieEditor.Ui;
 
 internal sealed partial class InspectorPanel
 {
+    // The native session supplies effective backend values for one body. These diagnostics use
+    // kilograms, square meters, world units, and kilograms times world units squared, respectively.
     private void DrawBodyMass()
     {
         ImGui.Separator();

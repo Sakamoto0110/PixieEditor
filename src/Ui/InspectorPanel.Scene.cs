@@ -9,7 +9,8 @@ internal sealed partial class InspectorPanel
     private string ScopeName = "";
     private bool ScopeNameActive;
 
-    // Rebuild bindings without drawing a second interactive Inspector inside another panel.
+    /// <summary>Recreates bindings for the current World, Scene, or shared entity components.</summary>
+    /// <remarks>Recovery can call this before any interactive Inspector window is drawn.</remarks>
     internal void Rebind(Selection selection)
     {
         if (selection.IsWorld) { BindWorld(); return; }

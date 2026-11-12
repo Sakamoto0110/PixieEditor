@@ -16,6 +16,8 @@ internal sealed partial class InspectorPanel
     private readonly Dictionary<(int Type, int List, int Index, int Field, int Point), Vector2> RecordPoints = [];
     private readonly Dictionary<(int Type, int List, int Index, int Field), string> RecordText = [];
 
+    // A record uses the same descriptor factory as a component. The address carries its owning list
+    // and current index, so list shape changes require discarding the cached views.
     private RecordSection RecordInspector(int type, int list, int index)
     {
         var key = (type, list, index);

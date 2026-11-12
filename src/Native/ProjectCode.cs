@@ -162,6 +162,13 @@ internal static class ProjectCode
 
     internal static string CreateComponent(string folder, string name) => CreateComponent(folder, name, GameLibrary.Selection);
 
+    /// <summary>Generates the component pair and updates the owned source registry and manifest.</summary>
+    /// <returns>The project-relative path to the generated C++ implementation.</returns>
+    /// <remarks>
+    /// The installed SDK path requires compatible build support and admitted templates. Generation
+    /// checks ownership before writing, preserves existing-file preimages, and reports partial
+    /// output on write failure. Registration takes effect when the rebuilt module opens.
+    /// </remarks>
     internal static string CreateComponent(string folder, string name, EngineSdk? sdk)
     {
         if (!ValidName(name)) throw new EngineException("Use a C++ identifier of at most 64 letters/digits/underscores, starting with a letter, without reserved keywords or double underscores.");

@@ -2,6 +2,12 @@ using Hexa.NET.ImGui;
 using PixieEditor.Native;
 
 namespace PixieEditor.Ui;
+/// <summary>Presents export of the saved project through the selected SDK's paired exporter.</summary>
+/// <remarks>
+/// The default destination is a sibling folder named after the project with an -export suffix.
+/// Closing the popup leaves the job running. The panel reports completion and exposes recent output
+/// under Build log, and disposal delegates process cleanup to the job.
+/// </remarks>
 internal sealed class ExportPanel(EngineSession session, EngineSdk? sdk) : IDisposable
 {
     private readonly ProjectExportJob Job = new();
@@ -13,6 +19,8 @@ internal sealed class ExportPanel(EngineSession session, EngineSdk? sdk) : IDisp
     public bool Failed => Job.Failed;
     public bool Available => sdk?.Exporter != null;
     public void Open() { Requested = true; }
+    /// <summary>Starts an export from a saved project in Edit mode with a paired exporter.</summary>
+    /// <remarks>Refusal and asynchronous completion are reported through Editor status.</remarks>
     public void Start(string output)
     {
         if (session.ProjectFolder == null || !session.Editing || session.Unsaved)

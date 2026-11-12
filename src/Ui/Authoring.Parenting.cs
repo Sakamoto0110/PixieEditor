@@ -18,6 +18,7 @@ internal sealed partial class Authoring
             });
     });
 
+    // Capture the complete authored document so replay covers changes to surviving children.
     private bool RecordParentingChange(string name, Func<bool> change)
     {
         var before = session.ProjectSnapshot();

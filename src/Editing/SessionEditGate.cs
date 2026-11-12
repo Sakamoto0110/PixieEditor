@@ -2,8 +2,12 @@ using PixieEditor.Native;
 
 namespace PixieEditor.Editing;
 
-// One serial admission boundary shared by GUI, scripted edits and development dispatch.
-// It owns no World and launches no work. Read-only observations remain separate.
+/// <summary>Admits mutations on the session owner thread while the session is ready.</summary>
+/// <remarks>
+/// GUI, scripted, and development edits share the gate. Candidate preparation blocks new edits.
+/// A successful publication keeps the gate blocked until bindings recover. Read-only observations
+/// remain separate. The gate owns no World and launches no work.
+/// </remarks>
 internal sealed class SessionEditGate
 {
     private enum Phase { Ready, Preparing, Recovery }
