@@ -1,6 +1,5 @@
 param(
     [Parameter(Mandatory)][string]$SdkRoot,
-    [Parameter(Mandatory)][ValidatePattern('^[0-9a-f]{40}$')][string]$EngineSource,
     [Parameter(Mandatory)][string]$BaselineNative,
     [Parameter(Mandatory)][string]$Out
 )
@@ -86,7 +85,8 @@ foreach ($line in (Get-Content -LiteralPath "$SdkRoot/provenance/dependency-inpu
 $headerHashes = [ordered]@{}
 foreach ($name in 'glfw3.h','glfw3native.h') {
     $path = "external/glfw/include/GLFW/$name"
-    Invoke-WebRequest "https://raw.githubusercontent.com/Sakamoto0110/PixieEngine/$EngineSource/$path" -OutFile "$glfwHeaders/$name"
+    $source = "https://raw.githubusercontent.com/glfw/glfw/$($pins.sources.glfwHeaders.commit)/include/GLFW/$name"
+    Invoke-WebRequest $source -OutFile "$glfwHeaders/$name"
     $digest = Get-Sha256 "$glfwHeaders/$name"
     if ($digest -cne $sdkInventory[$path]) { throw "SDK GLFW header pin mismatch: $name" }
     $headerHashes[$name] = $digest

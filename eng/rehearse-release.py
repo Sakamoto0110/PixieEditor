@@ -172,12 +172,12 @@ def stage_editor(publish, stage, sdk, authoring, shipping, packages, dependencie
     require((stage / "PixieEditor.exe").is_file(), "Editor apphost missing")
 
 
-def rebuild_editor_native(work, stage, sdk, engine_source):
+def rebuild_editor_native(work, stage, sdk):
     recipe = NATIVE / "rebuild"
     output = work / "native-build"
     native = stage / "runtimes/win-x64/native"
     subprocess.run(["pwsh", "-NoProfile", "-File", recipe / "build.ps1", "-SdkRoot", sdk,
-                    "-EngineSource", engine_source, "-BaselineNative", native, "-Out", output], check=True)
+                    "-BaselineNative", native, "-Out", output], check=True)
     build_file = output / "native-build.json"
     build = json.loads(build_file.read_bytes())
     provenance_file = stage / "native-provenance.json"
@@ -272,7 +272,7 @@ def main():
     authoring = json.loads((sdk / "profiles/authoring/Release/profile.json").read_bytes())
     stage_editor(publish, stage, sdk, authoring, shipping, packages, dependencies)
     if args.rebuild_native:
-        rebuild_editor_native(work, stage, sdk, receipt["sourceCommit"])
+        rebuild_editor_native(work, stage, sdk)
     pack(stage, work / "assets", receipt, sdk, dependencies)
 
 
