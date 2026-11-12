@@ -84,6 +84,11 @@ Scene commands and global Undo/Redo can operate from World/Scene targets.
 
 ## Entity parenting
 
+The admitted v3 scene family persists parent links and child-local poses in
+unscoped scenes. v1 remains flat and v2 supports logical Scene scopes. A change
+to the v3 family uses a new destination. Existing v1 and v2 files can remain
+in their formats. [Engine v3 scene contract](https://github.com/Sakamoto0110/PixieEngine/blob/ac48e01ed040ee607662e6cdf1f4ff9742c4b0f4/docs/modules/runtime/REFERENCE.md#version-3-parenting-scenes)
+
 A version 3 project opened with a parenting-capable SDK lists only roots in
 **Entities**. The Inspector shows the hierarchy immediately above **Add
 component**, using the same header style as the components. Click a name to
@@ -171,7 +176,7 @@ entries can be replayed only through that coordinator. During committed binding 
 ordinary mutations, project asset imports and stale Inspector queries refuse before their
 handlers; read-only `world.*` observations remain available. `editor.do` with
 `{"command":"recover"}` retries bindings without replaying the World or history; the reply
-distinguishes `recovered` from `recovery_pending`. A recovery panel offers the same retry.
+distinguishes `recovered` from `recovery_pending`. The panel offers **Retry Inspector recovery**.
 The unsaved-close prompt still permits discard/cancel and disables Save until recovery; the
 existing scripted timed exit remains available.
 

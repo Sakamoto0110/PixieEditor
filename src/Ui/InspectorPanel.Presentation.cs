@@ -5,6 +5,8 @@ namespace PixieEditor.Ui;
 
 internal sealed partial class InspectorPanel
 {
+    // Scope zero edits World defaults. Named scopes edit overrides and camera references through
+    // queued document edits. Inspecting a scope leaves the live viewport selection alone.
     private void DrawPresentation(ulong scope)
     {
         if (authoring.Scenes is not { } scenes) return;

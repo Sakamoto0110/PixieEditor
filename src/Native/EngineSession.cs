@@ -2,16 +2,20 @@ using System.Text;
 
 namespace PixieEditor.Native;
 
-// A failure reported by the C API, with its last error text.
+/// <summary>Reports an Editor or native Engine operation failure.</summary>
+/// <remarks>When supplied, the result and last error text preserve the native failure details.</remarks>
 public sealed class EngineException(string message, PixieResult? result = null, string? nativeError = null) : Exception(message)
 {
     public PixieResult? Result { get; } = result;
     public string? NativeError { get; } = nativeError;
 }
 
-// A game's session through the C API: the managed face of PixieSession. Every call needs the GL
-// context the session was created with current on this thread. A failed call throws an
-// EngineException with the engine's reason.
+/// <summary>Owns the native PixieSession and exposes its current World through the C API.</summary>
+/// <remarks>
+/// Call on the session owner thread with its GL context current. Native call failures surface as
+/// <see cref="EngineException"/>. A World replacement invalidates entity handles and Inspector
+/// bindings. Resolve authored entities again by scene ID, and dispose before tearing down the context.
+/// </remarks>
 public sealed unsafe class EngineSession : IDisposable
 {
     private nint Handle;
@@ -26,8 +30,10 @@ public sealed unsafe class EngineSession : IDisposable
     internal int SnapshotBufferCapacity => SnapshotBuffer?.Length ?? 0;
     private readonly Dictionary<string, int> TypeIndices = [];
     private readonly Dictionary<(int Type, string Field), int> FieldIndices = [];
+    /// <summary>Session-local stamp for discarding bindings after invalidation.</summary>
     internal long BindingRevision { get; private set; }
     internal event Action? BindingsReplacing;
+    /// <summary>Lets subscribers finish edits against the current World before replacement.</summary>
     internal void PrepareBindingsReplacement()
     {
         Edits.RequireMutation();
@@ -195,6 +201,7 @@ public sealed unsafe class EngineSession : IDisposable
     public PixieBodyMass2D? BodyMass2D(uint entity) =>
         Found(PixieCapi.BodyMass2D(Handle, entity, out var mass), "read body mass") ? mass : null;
 
+    /// <summary>Enters Play mode through the native project session and invalidates bindings.</summary>
     public void Play()
     {
         Edits.RequireMutation();
@@ -202,6 +209,7 @@ public sealed unsafe class EngineSession : IDisposable
         Check(PixieCapi.SessionPlay(Handle), "play");
         ++BindingRevision;
     }
+    /// <summary>Restores the authored edit World and invalidates Play bindings.</summary>
     public void Stop()
     {
         Edits.RequireMutation();
@@ -276,6 +284,7 @@ public sealed unsafe class EngineSession : IDisposable
         return ApplySceneCandidateCore(snapshot, token);
     }
 
+    /// <summary>Publishes with the preparation lease and blocks editing pending binding recovery.</summary>
     internal PixieSceneEditReceipt PublishSceneCandidate(string snapshot, PixieSceneEditToken expected)
     {
         Edits.RequirePreparation();
@@ -591,6 +600,7 @@ public sealed unsafe class EngineSession : IDisposable
         Edits.RequireMutation();
         Check(PixieCapi.SessionStep(Handle), "step");
     }
+    /// <summary>Rebuilds the current native World after notifying binding subscribers.</summary>
     public void Reset()
     {
         Edits.RequireMutation();
@@ -694,6 +704,7 @@ public sealed unsafe class EngineSession : IDisposable
         return created != 0;
     }
 
+    /// <summary>Counts types in this session's native reflection registry.</summary>
     public int TypeCount => PixieCapi.TypeCount(Handle);
     public string TypeName(int type) => ReadString((b, n) => PixieCapi.TypeName(Handle, type, b, n), "read a type name");
     public int TypeIndex(string name) => TypeIndices.TryGetValue(name, out var index) ? index : -1;
@@ -722,6 +733,7 @@ public sealed unsafe class EngineSession : IDisposable
     public string FieldName(int type, int field) =>
         ReadString((b, n) => PixieCapi.FieldName(Handle, type, field, b, n), "read a field name");
 
+    /// <summary>Reads descriptor flags, display options, and value metadata from the native registry.</summary>
     public PixieFieldInfo FieldInfo(int type, int field)
     {
         Check(PixieCapi.FieldInfo(Handle, type, field, out var info), "read a field's metadata");

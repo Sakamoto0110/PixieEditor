@@ -111,6 +111,7 @@ internal sealed partial class InspectorPanel
         }
     }
 
+    // Finish gestures only while their bindings still address the live World.
     private void ReleaseBranchBinding(InspectorPanel? binding)
     {
         if (binding == null) return;
@@ -125,6 +126,7 @@ internal sealed partial class InspectorPanel
         foreach (var section in Sections) FinishHiddenGroup(section);
     }
 
+    // Defer mutations until the Inspector has ended its window and close the recorder first.
     private void DrawParentingMenu(uint[] chosen, uint[] all)
     {
         var transform = session.TypeIndex("Transform2D");

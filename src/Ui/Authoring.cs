@@ -82,6 +82,13 @@ internal sealed partial class Authoring(EngineSession session, Selection selecti
     public void SetRecordText(uint entity, int type, int list, int index, int field, string text) =>
         Change([entity], "edit of shape text", e => session.SetRecordText(e, type, list, index, field, text));
 
+    /// <summary>Converts selected authored colliders to one-record compound colliders.</summary>
+    /// <remarks>
+    /// The v2 path publishes a prepared fragment as a World candidate. The v3 fragment path can
+    /// detach an unselected child of a converted parent while preserving the child's world pose.
+    /// Undo restores the converted entities from their snapshots. The surviving child's original
+    /// parent link and local transform are outside those snapshots.
+    /// </remarks>
     public bool MakeCompound(IReadOnlyList<uint> entities)
     {
         return Guard(() =>

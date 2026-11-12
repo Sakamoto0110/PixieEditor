@@ -2,11 +2,15 @@ using PixieEditor.Native;
 
 namespace PixieEditor.Inspection;
 
-// One component of one entity in the native World: what an inspector binds. Its fields are read and
-// written through the C API every time, so the native World stays the only copy of the state. Writes
-// go through the editor's recorder, which makes them steps of the history.
+/// <summary>Locates a record by its owner component type, list field, and zero-based index.</summary>
 internal readonly record struct RecordAddress(int OwnerType, int List, int Index);
 
+/// <summary>Binds an Inspector node to a component or record in the native World.</summary>
+/// <remarks>
+/// Each access uses the native field storage. With a recorder, writes also feed gesture history.
+/// The binding expires when the session's binding revision changes. Record addresses are positional
+/// and the panel also rebuilds them when the list shape changes.
+/// </remarks>
 internal sealed class ComponentHandle(EngineSession session, uint entity, int type, Editing.EditRecorder? recorder = null, RecordAddress? record = null)
 {
     private readonly long Revision = session.BindingRevision;

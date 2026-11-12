@@ -1,63 +1,39 @@
 # First game: Editor walkthrough
 
-This guide accompanies the PixieEngine **consumer handbook**. It owns the UI
-instructions; the Engine handbook owns C++ API usage. Read its setup page first.
 Use a compatible public Editor, a complete installed SDK and a separate writable
-game folder. You do not need an Engine source checkout to author a game.
+game folder. Start with the [Engine setup guide](https://github.com/Sakamoto0110/PixieEngine/blob/ac48e01ed040ee607662e6cdf1f4ff9742c4b0f4/docs/handbook/setup.md#obtain-the-inputs)
+for prerequisites and SDK selection. The published Engine handbook also
+provides the C++ examples used below. Use documentation that matches the
+artifacts supplied for your game.
 
 ## Required workflow for the Claude handoff
 
-**Computer Use is mandatory for Editor interactions.** Create/open the project,
-edit Inspector values, attach components, save, undo/redo, Play/Pause/Stop,
-generate code/components, Build and reopen, and Export through the actual UI.
-Do not substitute command-line scene generation, private automation, MCP scene
-mutations or direct edits of scene files and then describe that as UI usage.
-
-The Editor does not contain a C++ text editor. Use an allowed external code
-editor/file tool for the game's user-owned C++ files, then return to the Editor
-and build through its menu. This division is part of the workflow. If all code
-entry must also be mouse/keyboard driven, use an external text editor through
-Computer Use; PixieEditor alone cannot supply that editing surface.
-
-Observe each action's result before the next action. Coordinates vary with
-window size, panel layout and DPI. Native ImGui content may not expose individual
-accessibility elements, so use fresh screenshots and visible labels rather than
-guessing controls. If Computer Use is unavailable or interrupted, report it;
-do not silently substitute another authoring path.
-
-Use the launch route supported by your Computer Use tool: direct application
-launch if available, or open the supplied folder in an approved file browser
-and double-click the executable. Some tools grant access only after an app is
-running. State any preparatory shell launch separately from UI authoring; do
-not bypass the tool's access restrictions or assume another agent has yours.
-
-For missed native UI clicks, move the pointer to the control first, allow the
-UI to process the hover, then click and observe. A held control requires a real
-mouse-down/mouse-up sequence if the tool supports it; repeated clicks are not
-a hold. Use fresh screenshots after rebuilds, window moves and layout changes.
-There is no universal delay that guarantees input delivery.
+Use the optional [Engine assistant handoff](../../PixieEngine/docs/handbook/assistant-handoff.md#computer-use-workflow)
+when the game owner requests a Computer Use walkthrough. Ask for the matching
+guide from the artifact maintainer if you have a standalone Editor copy.
+The [published predecessor](https://github.com/Sakamoto0110/PixieEngine/blob/ac48e01ed040ee607662e6cdf1f4ff9742c4b0f4/docs/handbook/README.md#handoff-instruction-for-an-assistant)
+also describes the assistant-led workflow. For hands-on use, start below.
 
 ## 1. Choose the SDK and create a project
 
 1. Launch `PixieEditor.exe` from the complete application folder supplied by the
    maintainer. Keep its dependencies beside it.
-2. On the start screen, inspect the SDK summary. Click **Choose SDK** if needed.
+2. On the start screen, inspect the SDK summary. Click **Choose SDK...** if needed.
 3. Navigate to the installed SDK root containing `sdk.json`. In the folder
    picker, click the address/path field, replace its text with the supplied root,
    press Enter and click **Use SDK**. Expect the version, authoring profile and
    native configuration in the summary. It is normal for installation paths to
    be machine-specific; do not write them into portable game files.
-   If a path works in an assistant's file tools but not here, use the verified
-   physical path and identity supplied in the handoff. File-tool access alone
-   does not prove access from the Editor's process.
+   If another tool can see the folder and the Editor cannot, follow
+   [cross-application path checks](https://github.com/Sakamoto0110/PixieEngine/blob/ac48e01ed040ee607662e6cdf1f4ff9742c4b0f4/docs/handbook/setup.md#when-a-path-works-in-one-application-but-not-another).
 4. Click **New project**. Choose the parent directory in **Location**, and enter
    a distinct **Name** such as `HandbookPractice`. The resulting location/name
    directory must be new or empty. Click **Create**.
 5. Expect the scene to open in **Editing**, with a starter blue circle named
    `shape`. The Session panel reports the project, Saved state and runtime.
 
-For an existing game use **Open project** or its recent entry. Select its folder
-or `.pixie` manifest as the picker permits. The current project is not overwritten
+For an existing game use **Open project** or its recent entry. Select the folder
+containing its `.pixie` manifest. The current project is not overwritten
 by choosing New. Prompts about unsaved changes have Save, Don't save and Cancel;
 make that choice deliberately. See [projects](projects.md) for detailed routing.
 
@@ -95,8 +71,8 @@ guide's author.
 
 1. Choose **Code > Add code**. It generates a CMake project, Project class,
    component registry and Spinner example, then rebuilds and reopens.
-2. Allow the Editor to close/restart. Rediscover its new window; the old window
-   ID is no longer an input target. Wait for either the project or a diagnostic.
+2. Allow the Editor to close and restart. Wait for the reopened project or a
+   diagnostic.
 3. Confirm Session's Code field now names `<Id>-module.dll` and your selected
    entity/pose survived.
 4. Select the triangle, click **Add component**, and choose **Spinner**.
@@ -129,9 +105,9 @@ test must be observed separately in an exported player to claim player coverage.
 3. Wait for reopening. The new component should be attached to the original
    selection. Creation writes reusable source and registry entries; other
    entities can later attach the same type.
-4. Use its **Open code** button or open the game folder in an external code editor.
-   Edit `src/components/PlayerController.hpp` and `.cpp` using the complete
-   Engine handbook example. Do not edit generated registry files/hashes or
+4. Use **Open code** to open the project and file in VS Code, or open the game
+   folder yourself in another code editor. Edit `src/components/PlayerController.hpp`
+   and `.cpp` using the [Engine example](https://github.com/Sakamoto0110/PixieEngine/blob/ac48e01ed040ee607662e6cdf1f4ff9742c4b0f4/docs/handbook/gameplay.md#complete-example-free-top-down-movement). Do not edit generated registry files/hashes or
    template-owned CMake text. Save the source files in that editor.
 5. Choose **Code > Build and reopen**. Wait and inspect errors, or confirm the
    component now exposes the example's **enabled** and **speed** fields.
@@ -164,8 +140,8 @@ data as applicable. The Editor's scene save does not serialize all runtime memor
 1. Stop, save scene/source and finish any needed Build and reopen.
 2. Choose **File > Export game...**. Select a new/empty output folder outside
    the project, such as `C:\Games\Exports\HandbookPractice-r1`.
-3. Click the export action and wait for the panel's result/log. Preserve any
-   failure text. Do not repeatedly merge partial attempts into the same folder.
+3. Click **Export** and expand **Build log** for diagnostics. Preserve failure
+   text before retrying in a fresh destination.
 4. Open the successful output folder and launch its game executable. Keep all
    staged files together. Verify visible content and input in the standalone
    player; do not assume the Editor result establishes the player result.
@@ -178,8 +154,8 @@ not report a success message you could not see. Before distribution, check that
 asset license/notice files accompanied the exported assets; discovery of a font
 does not automatically include the text file next to it.
 
-This is a local export, not publication. See the Engine handbook's export page
-for paired-runtime rules and code-only asset limits.
+Export writes to your local destination. For paired runtime selection and
+asset limits, see [Engine export and troubleshooting](https://github.com/Sakamoto0110/PixieEngine/blob/ac48e01ed040ee607662e6cdf1f4ff9742c4b0f4/docs/handbook/export-and-troubleshooting.md#export-through-the-editor).
 
 ## Continue from the first success
 
@@ -192,8 +168,8 @@ for paired-runtime rules and code-only asset limits.
 | Clickable HUD | External C++ and Build/reopen | ScreenCanvas helper; game-owned hit testing |
 | Collision particles | Configure pools/effects, inspect Play | Read physics events, explicitly Emit |
 
-Save a `CONSUMER-REPORT.md` in the game folder using the accompanying Engine
-handbook's report template. Separate UI actions from external C++/asset edits,
+For a handoff, save `CONSUMER-REPORT.md` in the game folder using the
+[consumer report template](https://github.com/Sakamoto0110/PixieEngine/blob/ac48e01ed040ee607662e6cdf1f4ff9742c4b0f4/docs/handbook/consumer-report-template.md). Separate UI actions from external C++/asset edits,
 direct observations from source review or user reports, and identify each build.
 Include changed SDK selections and any manual export additions.
 

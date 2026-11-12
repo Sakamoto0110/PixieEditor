@@ -31,11 +31,11 @@ Engine source checkout or a particular sibling-folder layout.
 
 | Area | Owner and direct reading route |
 |---|---|
-| `src/` | Editor UI, sessions, loading, history and project workflows; [topic index](docs/README.md) |
+| `src/` | Editor UI, sessions, loading, history and project workflows. See [architecture](docs/architecture.md) and the [topic index](docs/README.md). |
 | `src/PixieEditor.csproj` | Editor build properties and selected package inputs; [development](docs/development.md) |
 | `eng/`, `.github/` | Editor build/release automation and declared artifact inputs; [development](docs/development.md), [dependencies](DEPENDENCIES.md) |
 | `eng/native/` | Admitted Editor native dependency inputs and provenance; [evidence index](docs/evidence/README.md) |
-| `tests/` | Editor-owned bounded checks; procedures and existing limits remain in [development](docs/development.md) |
+| `tests/` | [Candidate publication](tests/code-components/SceneCandidateTests.cs), [process reopening](tests/code-components/ProcessReopenTests.cs) and [field interactions](tests/field-interactions/Program.cs). See [development](docs/development.md) for the supported checks and limits. |
 | `docs/` | Editor user workflows, session contracts and evidence routes; [documentation index](docs/README.md) |
 | Root planners | [ROADMAP](ROADMAP.md) owns local direction and contribution outcomes; [TODO](TODO.md) owns explicitly accepted local execution |
 | Selected Engine SDK | Native public API, runtime and generated interop contract; consumed through declared SDK selection, not copied into an Editor API catalog |

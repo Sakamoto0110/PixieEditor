@@ -5,17 +5,24 @@ using PixieLib;
 
 namespace PixieEditor.Inspection;
 
-// Builds the inspector of one component type from the engine's field descriptors: a manual
-// PixieInspector with one field per descriptor field (two for a point or a vector, four for a
-// rectangle), each with the node options the descriptor carries. No class per component exists on
-// this side; a component added to a game's library shows up without rebuilding the editor.
+/// <summary>Builds manual PixieInspector bindings from the active native component descriptors.</summary>
+/// <remarks>
+/// A registered game component can supply rows without an Editor rebuild. Scalar fields use one
+/// node, points and vectors use two, and rectangles use four. Descriptor metadata supplies labels,
+/// order, editor options and numeric display units.
+/// </remarks>
 internal static class InspectorFactory
 {
     // The name of the button a scenario's inspector gets.
     public const string RebuildButton = "rebuild";
 
-    // An inspector of component `type`, bound to the first handle and to the rest with AddBind. A
-    // scenario type also gets a button that asks for the scene to be rebuilt with its values.
+    /// <summary>Builds and binds nodes for the requested fields and targets.</summary>
+    /// <remarks>
+    /// The caller owns disposal and rebinding. Runtime-only fields are hidden in Edit mode and layer
+    /// masks use the panel's dedicated controls. A native field lock on any bound component makes the
+    /// corresponding node read-only for the whole selection. When enabled, a scenario gets a rebuild
+    /// button that invokes the supplied callback.
+    /// </remarks>
     public static Inspector Build(EngineSession session, int type, IReadOnlyList<ComponentHandle> handles, Action rebuild,
         Func<int, bool>? include = null, bool forceReadOnly = false, bool showRebuild = true)
     {

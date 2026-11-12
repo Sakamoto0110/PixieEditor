@@ -39,6 +39,8 @@ and [release rehearsal](../development.md#rehearse-the-windows-x64-release)
 describe inputs and procedures. They do not prove a new execution or grant
 permission to run one. Existing evidence retains its recorded candidate scope.
 
+The [history index](../history/README.md) routes completed Editor outcomes.
+
 New roadmap closures will use `docs/history/` when an accepted outcome needs a
 closure record, under the [documentation policy](../governance/documentation-policy.md).
 D09's existing implementation/qualification freeze remains unchanged.

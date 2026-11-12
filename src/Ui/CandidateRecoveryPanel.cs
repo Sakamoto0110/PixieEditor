@@ -4,6 +4,7 @@ using PixieEditor.Native;
 
 namespace PixieEditor.Ui;
 
+/// <summary>Presents binding recovery after a candidate World has already committed.</summary>
 internal static class CandidateRecoveryPanel
 {
     internal static void Draw(EngineSession session)

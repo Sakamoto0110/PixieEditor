@@ -17,7 +17,7 @@ namespace PixieEditor.Ui;
 // one library per process, so another one opens in a new editor.
 internal sealed class EditorWindow(EditorOptions options)
 {
-    // The engine's public version (three components of version.json), shown in the title.
+    // The title displays three components of the Editor assembly version, sourced from PixieEditor version.json.
     private static readonly string ProductVersion = typeof(EditorWindow).Assembly.GetName().Version?.ToString(3) ?? "?";
 
     // What closing the window, or opening another project, waits on when the scene is not saved.

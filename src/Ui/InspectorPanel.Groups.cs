@@ -7,6 +7,8 @@ namespace PixieEditor.Ui;
 
 internal sealed partial class InspectorPanel
 {
+    // Use descriptor order and group paths for the shared component fields. The same filtered field
+    // set feeds PixieInspector nodes and the panel's text, list, and mask controls.
     private void BuildFieldGroups(int type, ComponentHandle[] handles)
     {
         var name = session.TypeName(type);
@@ -72,6 +74,8 @@ internal sealed partial class InspectorPanel
         }
     }
 
+    // A collapsed group stops receiving input. End its active views and drop pending typing buffers
+    // so hidden controls cannot keep the candidate edit gate busy.
     private void FinishHiddenGroup(Section section)
     {
 #if PIXIE_INSPECTOR_FIELD_INTERACTIONS

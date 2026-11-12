@@ -41,8 +41,13 @@ internal sealed class FieldStep(string name, IReadOnlyList<FieldStep.Change> cha
     }
 }
 
-// Entities replaced as a whole, from one snapshot to another: creating them (no snapshot before),
-// deleting them (none after), duplicating, adding or removing components, and renaming.
+/// <summary>Replays the affected authored entities using before and after fragment snapshots.</summary>
+/// <remarks>
+/// A missing before or after snapshot represents creation or deletion, respectively. Duplication,
+/// component edits, and renames can use this step. V2 routes through candidate publication.
+/// With parenting enabled, replay refuses replacement while a surviving child still points at a
+/// replaced entity. Links already lost during the original edit are outside the fragment.
+/// </remarks>
 internal sealed class ReplaceStep(string name, IReadOnlyList<ulong> entities, string? before, string? after) : IStep
 {
     public string Name => name;
@@ -72,7 +77,8 @@ internal sealed class ReplaceStep(string name, IReadOnlyList<ulong> entities, st
     }
 }
 
-// A structural edit may change surviving children as well as the selected entities.
+/// <summary>Replays a structural parenting edit from complete authored v3 documents.</summary>
+/// <remarks>Whole documents include surviving children. Selection resolves by scene ID after restore.</remarks>
 internal sealed class ParentingStep(string name, string before, string after, ulong[] beforeSelection, ulong[] afterSelection) : IStep
 {
     public string Name => name;
@@ -86,8 +92,11 @@ internal sealed class ParentingStep(string name, string before, string after, ul
     }
 }
 
-// The steps of this session, newest last. A new step clears what was undone. It lives in memory only,
-// and outlasts Play, Stop, and Save, which do not change what the scene holds.
+/// <summary>Holds this Editor session's in-memory undo and redo stacks, newest last.</summary>
+/// <remarks>
+/// Play, Stop, and Save preserve the stacks. Recording a new step discards the redo stack.
+/// A code rebuild that reopens the project in a new process starts a new history.
+/// </remarks>
 internal sealed class History
 {
     internal SessionEditGate? Gate { get; set; }
@@ -164,6 +173,8 @@ internal sealed class EditRecorder(EngineSession session, History history, Func<
     private readonly Dictionary<uint, (ulong Id, string Before)> Records = [];
     internal SceneDocumentEditor? SceneEditor { get; set; }
     private SceneDocumentEditor.Observation? WholeChange;
+    // V2 uses an authored document pair for property history. Observe the first write in a gesture
+    // so subsequent writes can share the same before state.
     private void ObserveWholeChange()
     {
         if (WholeChange == null && recording() && session.SceneFormatVersion == 2)

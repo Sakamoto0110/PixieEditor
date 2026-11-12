@@ -59,7 +59,8 @@ internal sealed class Selection
         Anchor = null;
     }
 
-    // Play/Stop reconstruct the World. Scene IDs identify the same authored entities across it.
+    /// <summary>Resolves selection and its anchor by scene ID after a World rebuild.</summary>
+    /// <remarks>A missing selected Scene falls back to the World target. Missing entities drop out.</remarks>
     public void PreserveThrough(EngineSession session, Action rebuild)
     {
         var world = IsWorld;

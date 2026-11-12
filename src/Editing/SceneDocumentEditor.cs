@@ -11,8 +11,12 @@ internal readonly record struct SceneEditMeasurement(PixieSceneEditReceipt Nativ
     double HistoryMilliseconds, double RebindMilliseconds, double TotalMilliseconds,
     bool RecoveryRequired, int SnapshotNativeCalls = 0);
 
-// Shared serial Scene authoring boundary. The host supplies the complete
-// Inspector/text/viewport gesture predicate and must recover bindings after publication.
+/// <summary>Coordinates prepared scene documents, native publication, history, and rebinding.</summary>
+/// <remarks>
+/// The host supplies the active Inspector, text, and viewport gesture predicate. A prepared document
+/// is tied to this coordinator, the native edit token, and the history revision. After publication,
+/// a failed rebind leaves the World and recorded step committed and edits blocked until recovery.
+/// </remarks>
 internal sealed class SceneDocumentEditor
 {
     private readonly EngineSession session;
@@ -123,6 +127,8 @@ internal sealed class SceneDocumentEditor
         Pending = targets; // References only: the recovery representation already exists.
     }
 
+    /// <summary>Retries selection resolution and Inspector rebinding for the committed World.</summary>
+    /// <returns>Whether bindings are ready for editing.</returns>
     internal bool RecoverBindings()
     {
         if (Busy) throw new EngineException("Candidate recovery cannot reenter an active publication or rebind.");
@@ -218,6 +224,7 @@ internal sealed class SceneDocumentEditor
             NativeMilliseconds = Stopwatch.GetElapsedTime(nativeStart).TotalMilliseconds;
             Pending = afterTargets;
             var committed = Stopwatch.GetTimestamp();
+            // The undo entry belongs to the committed World even if rebinding fails.
             history.RecordPrepared(step);
             var recorded = Stopwatch.GetTimestamp();
             RecoverCore();

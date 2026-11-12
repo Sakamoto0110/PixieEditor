@@ -19,6 +19,8 @@ internal sealed partial class InspectorPanel
     private static bool WorldPropertyAllowed(string type, string property) =>
         WorldFieldAllowed(type, property.TrimEnd('X', 'Y'));
 
+    /// <summary>Draws the Inspector for the selected World, Scene, or entities.</summary>
+    /// <remarks>Ordinary drawing pauses while candidate publication or binding recovery blocks edits.</remarks>
     public void Draw(Selection selection)
     {
         if (session.Edits.IsBlocked && !session.Edits.BindingRecovery) return;
@@ -30,6 +32,8 @@ internal sealed partial class InspectorPanel
         DrawWorld();
     }
 
+    // Legacy World settings bind only a unique live owner. Editable rows also require Edit mode
+    // and an authored scene ID. Canonical presentation uses the separate document editor.
     private void BindWorld()
     {
         if (!WorldBindingsSubscribed)

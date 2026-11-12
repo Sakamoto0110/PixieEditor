@@ -2,7 +2,12 @@ using System.Text.Json;
 
 namespace PixieEditor.Native;
 
-// A private handoff across the existing process restart, not a scene format or an implicit save.
+/// <summary>Carries bounded authoring and viewport state across a code rebuild process restart.</summary>
+/// <remarks>
+/// The project-local handoff includes a snapshot only when the scene is unsaved. Selection and pending
+/// attachment targets use scene IDs. Saving is a separate project operation. The new process
+/// restores the snapshot before Inspector subscriptions and creates a fresh history.
+/// </remarks>
 internal static class CodeReopen
 {
     internal sealed record Request(string Name, string Source, ulong[] Targets);
@@ -104,6 +109,8 @@ internal static class CodeReopen
         return Finish();
     }
 
+    /// <summary>Validates registration and every original target before handing off attachment.</summary>
+    /// <remarks>The reflected type must report the generated source and each stable ID must resolve.</remarks>
     internal static (int Type, uint[] Entities) ResolveAttachment(EngineSession session, Request request)
     {
         var type = session.TypeIndex(request.Name);
