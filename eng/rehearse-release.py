@@ -121,7 +121,7 @@ def prepare_feed(feed, upstream, work, dependencies):
     return config_path
 
 
-def stage_editor(publish, stage, sdk, shipping, packages, dependencies):
+def stage_editor(publish, stage, sdk, authoring, shipping, packages, dependencies):
     for file in sorted(publish.rglob("*")):
         relative = file.relative_to(publish)
         if not file.is_file() or file.suffix == ".pdb":
@@ -152,6 +152,14 @@ def stage_editor(publish, stage, sdk, shipping, packages, dependencies):
 
     provenance = json.loads((NATIVE / "release-provenance.json").read_bytes())
     native = stage / "runtimes/win-x64/native"
+    glfw_path = "profiles/authoring/Release/bin/glfw3.dll"
+    glfw = [entry for entry in authoring["nativeDependencies"] if entry["path"] == glfw_path]
+    require(len(glfw) == 1 and sha(sdk / glfw_path) == glfw[0]["sha256"], "SDK GLFW provider mismatch")
+    provenance["binaries"]["glfw3.dll"] = {
+        "sha256": glfw[0]["sha256"], "provider": "PixieEngine SDK",
+        "sdkPath": glfw_path, "sdkBuildId": authoring["sdkBuildId"],
+        "sdkCatalogSha256": sha(sdk / "sdk.json"), "notice": "licenses/glfw.txt",
+    }
     require({file.name for file in native.iterdir()} == provenance["binaries"].keys(), "Unexpected Windows x64 native inventory")
     for name, entry in provenance["binaries"].items():
         require(sha(native / name) == entry["sha256"], f"Native Editor payload changed: {name}")
@@ -159,9 +167,38 @@ def stage_editor(publish, stage, sdk, shipping, packages, dependencies):
         source = NATIVE / relative
         require(sha(source) == expected, f"Native notice changed: {relative}")
         shutil.copyfile(source, licenses / source.name)
-    shutil.copyfile(NATIVE / "release-provenance.json", stage / "native-provenance.json")
-    require(sha(licenses / "glfw.txt") == sha(NATIVE / "LICENSE.md"), "Pinned GLFW notice mismatch")
+    require(sha(licenses / "glfw.txt") == sha(sdk / "notices/glfw/LICENSE.md"), "SDK GLFW notice mismatch")
+    write_json(stage / "native-provenance.json", provenance)
     require((stage / "PixieEditor.exe").is_file(), "Editor apphost missing")
+
+
+def rebuild_editor_native(work, stage, sdk):
+    recipe = NATIVE / "rebuild"
+    output = work / "native-build"
+    native = stage / "runtimes/win-x64/native"
+    subprocess.run(["pwsh", "-NoProfile", "-File", recipe / "build.ps1", "-SdkRoot", sdk,
+                    "-BaselineNative", native, "-Out", output], check=True)
+    build_file = output / "native-build.json"
+    build = json.loads(build_file.read_bytes())
+    provenance_file = stage / "native-provenance.json"
+    provenance = json.loads(provenance_file.read_bytes())
+    expected = provenance["binaries"].keys() - {"glfw3.dll"}
+    require(build["schemaVersion"] == 1 and build["pinsSha256"] == sha(recipe / "pins.json") and
+            build["sdkCatalogSha256"] == sha(sdk / "sdk.json") and
+            build["sdkGlfwSha256"] == provenance["binaries"]["glfw3.dll"]["sha256"] and
+            build["brotliDecoder"]["staticLinkConfirmed"] is True and
+            build["binaries"].keys() == expected, "Rebuilt native receipt does not match the candidate inputs")
+    for name, entry in build["binaries"].items():
+        source = output / "bin" / name
+        require(sha(source) == entry["sha256"] and sha(native / name) == entry["baselineSha256"],
+                f"Rebuilt native file does not match its receipt: {name}")
+        shutil.copyfile(source, native / name)
+        provenance["binaries"][name] = dict(entry, provider="Pinned PixieEditor native build")
+    shutil.copyfile(build_file, stage / build_file.name)
+    provenance["qualification"] = "pinned native rebuild with verified ABI and notices"
+    provenance["nativeBuild"] = {"path": build_file.name, "sha256": sha(build_file)}
+    provenance["unresolved"] = []
+    write_json(provenance_file, provenance)
 
 
 def pack(stage, assets, receipt, sdk, dependencies):
@@ -210,6 +247,7 @@ def main():
     parser.add_argument("--sdk-catalog-sha256", required=True, type=str.lower)
     parser.add_argument("--inspector-feed", required=True, type=Path)
     parser.add_argument("--upstream-feed", type=Path, help="Optional offline mirror of the locked NuGet.org dependencies")
+    parser.add_argument("--rebuild-native", action="store_true", help="Build the pinned Windows x64 ImGui DLLs")
     parser.add_argument("--out", required=True, type=Path, help="New staging directory")
     args = parser.parse_args()
     require(os.name == "nt", "This rehearsal requires Windows x64")
@@ -231,7 +269,10 @@ def main():
                     "-InspectorPackageVersion", PAIR, "-NuGetConfig", config,
                     "-Locked", "-PublishDirectory", publish], cwd=ROOT, env=env, check=True)
     stage = work / "stage"
-    stage_editor(publish, stage, sdk, shipping, packages, dependencies)
+    authoring = json.loads((sdk / "profiles/authoring/Release/profile.json").read_bytes())
+    stage_editor(publish, stage, sdk, authoring, shipping, packages, dependencies)
+    if args.rebuild_native:
+        rebuild_editor_native(work, stage, sdk)
     pack(stage, work / "assets", receipt, sdk, dependencies)
 
 

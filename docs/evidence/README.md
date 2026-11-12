@@ -43,4 +43,4 @@ The [history index](../history/README.md) routes completed Editor outcomes.
 
 New roadmap closures will use `docs/history/` when an accepted outcome needs a
 closure record, under the [documentation policy](../governance/documentation-policy.md).
-D09's existing implementation/qualification freeze remains unchanged.
+The Windows x64 GLFW distribution contract is documented in [Dependencies](../../DEPENDENCIES.md).

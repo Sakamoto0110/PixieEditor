@@ -30,16 +30,18 @@ internal static class SdkSelectionTests
             Directory.CreateDirectory(Root);
             var runtime = $"profiles/{profile}/Release/bin/pixie.dll";
             var player = $"profiles/{profile}/Release/bin/pixie-player.exe";
-            foreach (var path in new[] { runtime, player })
+            var glfw = $"profiles/{profile}/Release/bin/glfw3.dll";
+            foreach (var path in new[] { runtime, player, glfw })
             {
                 var absolute = Path.Combine(Root, path); Directory.CreateDirectory(Path.GetDirectoryName(absolute)!);
                 File.WriteAllText(absolute, "SYNTHETIC NONEXECUTABLE C2 FIXTURE " + path + id);
             }
             JsonObject Reference(string path) => new() { ["path"] = path, ["sha256"] = EngineSdk.HashFile(Path.Combine(Root, path)) };
             Identity["runtime"] = Reference(runtime); Identity["player"] = Reference(player);
+            Identity["nativeDependencies"] ??= new JsonArray(Reference(glfw));
             File.WriteAllText(Path.Combine(Root, ProfilePath), Identity.ToJsonString());
             var files = new JsonArray();
-            foreach (var path in new[] { runtime, player, ProfilePath })
+            foreach (var path in new[] { runtime, player, glfw, ProfilePath })
                 files.Add(new JsonObject { ["path"] = path, ["size"] = new FileInfo(Path.Combine(Root, path)).Length,
                     ["sha256"] = EngineSdk.HashFile(Path.Combine(Root, path)), ["role"] = path.EndsWith(".json") ? "profile" : "runtime" });
             var catalog = new JsonObject
@@ -169,6 +171,15 @@ internal static class SdkSelectionTests
             options.NativeConfiguration == "Debug" && options.SdkRoot == a.Root, "native-options-independent-of-managed-configuration");
         Check(!PixieEditor.Program.TryParse(["--sdk-profile", "shipping"], out _), "shipping-cli-host-refused");
         Check(!PixieEditor.Program.TryParse(["--sdk-id", "invalid"], out _), "malformed-restart-identity-refused");
+        Check(!PixieEditor.Program.TryParse(["--project", work, "--project-action", "create"], out _),
+            "project-action-requires-an-admitted-restart");
+        var restart = EditorLaunch.WithGraphicsProvider(sdkB,
+            ["--project", "previous", "--after", "123", "--sdk", a.Root, "--recent", "off"], 456, work, "create");
+        var restartArgs = restart.ArgumentList.Skip(Path.GetFileNameWithoutExtension(restart.FileName)
+            .Equals("dotnet", StringComparison.OrdinalIgnoreCase) ? 1 : 0).ToArray();
+        Check(PixieEditor.Program.TryParse(restartArgs, out var resumed) && resumed.Project == work &&
+            resumed.ProjectAction == "create" && resumed.After == 456 && resumed.SdkRoot == sdkB.Root &&
+            resumed.SdkManifestSha256 == sdkB.ManifestSha256 && !resumed.Recent, "glfw-restart-preserves-action-and-pins-new-sdk");
         void Broken(string name, Action<Fixture> change)
         {
             var fixture = new Fixture(Path.Combine(work, name)); fixture.Write(); change(fixture);
@@ -176,6 +187,11 @@ internal static class SdkSelectionTests
         }
         Broken("missing-payload", f => File.Delete(Path.Combine(f.Root, "profiles/authoring/Release/bin/pixie.dll")));
         Broken("modified-payload", f => File.AppendAllText(Path.Combine(f.Root, "profiles/authoring/Release/bin/pixie.dll"), "changed"));
+        if (WindowsGlfw.Applies)
+        {
+            Broken("undeclared-glfw-provider", f => { f.Identity["nativeDependencies"] = new JsonArray(); f.Write(); });
+            Broken("modified-glfw-provider", f => File.AppendAllText(Path.Combine(f.Root, "profiles/authoring/Release/bin/glfw3.dll"), "changed"));
+        }
         Broken("unlisted-payload", f => File.WriteAllText(Path.Combine(f.Root, "unexpected.dll"), "unexpected"));
         Broken("declared-private-header-in-public-sdk", f =>
         {

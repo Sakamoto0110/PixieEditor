@@ -64,4 +64,4 @@ Historical origin IDs do not determine the current coordination owner. Shared
 parent records and pinned nonauthoritative excerpts must identify that owner
 without creating a competing scheduler or reactivating completed work.
 
-D09 remains frozen under the existing [policy](governance/documentation-policy.md#evidence-and-boundaries).
+See [Dependencies](../DEPENDENCIES.md) for the Windows x64 GLFW provider shared with the Engine SDK.

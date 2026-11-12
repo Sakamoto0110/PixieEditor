@@ -1,0 +1,42 @@
+{
+  "schemaVersion": 1,
+  "sources": {
+    "cimgui": {
+      "repository": "https://github.com/JunaMeinhold/cimgui.git",
+      "commit": "d61baefa0ce2a9db938ffdeb29e64f90f44cc037"
+    },
+    "cimgui_impl": {
+      "repository": "https://github.com/HexaEngine/cimgui_impl.git",
+      "commit": "7a459f54179587dc923749fed44ae34f78c370d3"
+    },
+    "imgui": {
+      "repository": "https://github.com/ocornut/imgui.git",
+      "commit": "1f7f1f54af38b0350d8c0008b096a9af6de299c7"
+    },
+    "glfwHeaders": {
+      "repository": "https://github.com/glfw/glfw.git",
+      "commit": "d9d6f0f1f967807ffade6598ea9a631ebaf37a56"
+    },
+    "luajit": {
+      "repository": "https://github.com/LuaJIT/LuaJIT.git",
+      "commit": "871db2c84ecefd70a850e03a6c340214a81739f0"
+    },
+    "hexaBindingInput": {
+      "repository": "https://github.com/HexaEngine/Hexa.NET.ImGui.git",
+      "commit": "ca764cc25238aa2e68f44ee189c5cc80453ea178"
+    },
+    "vcpkg": {
+      "repository": "https://github.com/microsoft/vcpkg.git",
+      "commit": "4acadb7d732e662bbf130c4849be6d3a0aa6f6b9"
+    },
+    "brotli": {
+      "repository": "https://github.com/google/brotli.git",
+      "commit": "ed738e842d2fbdf2d6459e39267a633c4a9b2f5d",
+      "package": "1.1.0#1",
+      "archiveSha512": "6eb280d10d8e1b43d22d00fa535435923c22ce8448709419d676ff47d4a644102ea04f488fc65a179c6c09fee12380992e9335bad8dfebd5d1f20908d10849d9"
+    }
+  },
+  "windowsSdk": "10.0.26100.0",
+  "msvcTools": "14.51.36231",
+  "buildConfiguration": "Release"
+}

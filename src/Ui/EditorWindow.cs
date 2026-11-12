@@ -15,7 +15,7 @@ namespace PixieEditor.Ui;
 // docking through its GLFW and OpenGL3 backends, and the four panels. Without a game or a project on
 // the command line, it shows the start screen first. One game or project per window: P/Invoke binds
 // one library per process, so another one opens in a new editor.
-internal sealed class EditorWindow(EditorOptions options)
+internal sealed class EditorWindow(EditorOptions options, string[] launchArguments)
 {
     // The title displays three components of the Editor assembly version, sourced from PixieEditor version.json.
     private static readonly string ProductVersion = typeof(EditorWindow).Assembly.GetName().Version?.ToString(3) ?? "?";
@@ -35,9 +35,16 @@ internal sealed class EditorWindow(EditorOptions options)
     // Whether the first project needs the default panel layout.
     private bool FirstLayout;
     private EngineSdk? SelectedSdk;
+    private WindowsGlfw? GlfwProvider;
 
     public unsafe int Run()
     {
+        if (options.After is { } pid)
+            WaitForExit(pid);
+        var savedSdkError = SelectInitialSdk();
+        if (WindowsGlfw.Applies)
+            GlfwProvider = new WindowsGlfw(SelectedSdk);
+
         var layoutPath = EditorSettings.LayoutPath;
 #if PIXIE_DEVELOPMENT
         layoutPath = options.LayoutOverride ?? layoutPath;
@@ -91,10 +98,15 @@ internal sealed class EditorWindow(EditorOptions options)
         var exitCode = 0;
         try
         {
-            var session = Open(window);
+            GlfwProvider?.VerifyCurrentContext((nint)window.Handle);
+            var session = Open(window, savedSdkError);
             if (session != null)
             {
-                using (session) exitCode = Edit(window, session);
+                using (session)
+                {
+                    GlfwProvider?.VerifyCurrentContext((nint)window.Handle);
+                    exitCode = Edit(window, session);
+                }
             }
         }
         finally
@@ -114,14 +126,8 @@ internal sealed class EditorWindow(EditorOptions options)
         return exitCode;
     }
 
-    // The session the command line asks for, or the one chosen on the start screen; null when the
-    // window was closed first.
-    private EngineSession? Open(GLFWwindowPtr window)
+    private string? SelectInitialSdk()
     {
-        if (options.After is { } pid)
-            WaitForExit(pid);
-
-        string? savedSdkError = null;
         var explicitSdk = EngineSdk.Override(options.SdkRoot, Environment.GetEnvironmentVariable("PIXIE_SDK_ROOT"));
         if (explicitSdk is { } requested)
             SelectSdk(EngineSdk.Load(requested.Root, options.SdkProfile ?? "authoring", options.NativeConfiguration ?? "Release",
@@ -134,12 +140,20 @@ internal sealed class EditorWindow(EditorOptions options)
             }
             catch (EngineException error)
             {
-                savedSdkError = $"The saved Engine SDK could not be used. Choose an installed SDK. {error.Message}";
+                return $"The saved Engine SDK could not be used. Choose an installed SDK. {error.Message}";
             }
         }
+        return null;
+    }
 
+    // The session the command line asks for, or the one chosen on the start screen.
+    private EngineSession? Open(GLFWwindowPtr window, string? savedSdkError)
+    {
         if (options.Project is { } folder)
-            return SelectedSdk != null ? OpenProject(window, folder) : ChooseProject(window, new(folder, false), savedSdkError);
+        {
+            var choice = new ProjectChoice(folder, options.ProjectAction == "create", options.ProjectAction == "adopt");
+            return SelectedSdk != null ? OpenChoice(window, choice) : ChooseProject(window, choice, savedSdkError);
+        }
 
         if (options.Game is { } game)
         {
@@ -172,7 +186,11 @@ internal sealed class EditorWindow(EditorOptions options)
         while (GLFW.WindowShouldClose(window) == 0)
         {
             GLFW.PollEvents(); BeginFrame(); _ = screen.Draw(); KeyEvents.Pending.Clear(); EndFrame(window, GLFW.GetTime());
-            if (screen.SelectedSdk is { } sdk) { SelectSdk(sdk); return true; }
+            if (screen.SelectedSdk is { } sdk)
+            {
+                SelectSdk(sdk);
+                return !RestartForGlfw(sdk);
+            }
         }
         return false;
     }
@@ -196,28 +214,42 @@ internal sealed class EditorWindow(EditorOptions options)
 
             try
             {
-                SelectSdk(screen.SelectedSdk ?? throw new EngineException("Choose an Engine SDK first."));
-                if (choice.Create)
-                {
-                    // Creating needs a library: the generic one, which a new project opens with.
-                    if (!GameLibrary.IsLoaded)
-                        GameLibrary.Use(GameLibrary.Find(GameLibrary.SceneGame));
-                    EngineSession.CreateProject(choice.Folder);
-                    SdkRequirements.Adopt(choice.Folder, SelectedSdk!);
-                    Console.Error.WriteLine($"[info] Created {choice.Folder}");
-                }
-
-                if (!choice.Create && choice.AdoptSdk && !SdkRequirements.Validate(choice.Folder, SelectedSdk!))
-                    SdkRequirements.Adopt(choice.Folder, SelectedSdk!);
-                return OpenProject(window, choice.Folder);
+                var sdk = screen.SelectedSdk ?? throw new EngineException("Choose an Engine SDK first.");
+                SelectSdk(sdk);
+                return RestartForGlfw(sdk, choice) ? null : OpenChoice(window, choice);
             }
-            catch (Exception e) when (e is EngineException or FileNotFoundException or DllNotFoundException)
+            catch (Exception e) when (e is EngineException or FileNotFoundException or DllNotFoundException or System.ComponentModel.Win32Exception)
             {
                 screen.Error = e.Message;
             }
         }
 
         return null;
+    }
+
+    private bool RestartForGlfw(EngineSdk sdk, ProjectChoice? choice = null)
+    {
+        if (GlfwProvider == null || GlfwProvider.Matches(sdk)) return false;
+        var action = choice is { Create: true } ? "create" : choice is { AdoptSdk: true } ? "adopt" : null;
+        Process.Start(EditorLaunch.WithGraphicsProvider(sdk, launchArguments, Environment.ProcessId, choice?.Folder, action));
+        return true;
+    }
+
+    private EngineSession? OpenChoice(GLFWwindowPtr window, ProjectChoice choice)
+    {
+        if (choice.Create)
+        {
+            // Creating needs a library: the generic one, which a new project opens with.
+            if (!GameLibrary.IsLoaded)
+                GameLibrary.Use(GameLibrary.Find(GameLibrary.SceneGame));
+            EngineSession.CreateProject(choice.Folder);
+            SdkRequirements.Adopt(choice.Folder, SelectedSdk!);
+            Console.Error.WriteLine($"[info] Created {choice.Folder}");
+        }
+        else if (choice.AdoptSdk && !SdkRequirements.Validate(choice.Folder, SelectedSdk!))
+            SdkRequirements.Adopt(choice.Folder, SelectedSdk!);
+
+        return OpenProject(window, choice.Folder);
     }
 
     // Opens a project: its code, if it has any, is built first on the build screen. Null when the
