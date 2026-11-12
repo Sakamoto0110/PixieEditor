@@ -111,6 +111,12 @@ $env:VCPKG_BINARY_SOURCES = 'clear'
 $env:VCPKG_VISUAL_STUDIO_PATH = $vs
 $env:VCPKG_DOWNLOADS = (New-Item -ItemType Directory "$inputs/downloads").FullName
 $env:VCPKG_MAX_CONCURRENCY = '6'
+$brotliSource = "$env:VCPKG_DOWNLOADS/google-brotli-v1.1.0.tar.gz"
+Invoke-WebRequest 'https://github.com/google/brotli/archive/v1.1.0.tar.gz' -OutFile $brotliSource
+$brotliArchive = Get-FileHash -LiteralPath $brotliSource -Algorithm SHA512
+if ($brotliArchive.Hash.ToLowerInvariant() -cne $pins.sources.brotli.archiveSha512) {
+    throw 'Brotli source archive pin mismatch.'
+}
 $dependencyInventory = [ordered]@{}
 foreach ($port in 'freetype','vulkan') {
     $triplet = if ($port -eq 'freetype') { 'x64-windows-static-md' } else { 'x64-windows' }
@@ -129,9 +135,9 @@ foreach ($port in 'freetype','vulkan') {
     $dependencyInventory[$port] = @(Get-Content "$outDir/install-$port/vcpkg/status" |
         Where-Object { $_ -match '^(Package|Version|Port-Version|Architecture|Feature):' })
 }
-$brotliArchive = Get-FileHash -LiteralPath "$env:VCPKG_DOWNLOADS/google-brotli-v1.1.0.tar.gz" -Algorithm SHA512
-if ($brotliArchive.Hash.ToLowerInvariant() -cne $pins.sources.brotli.archiveSha512) {
-    throw 'Brotli source archive pin mismatch.'
+if ((Get-Content -Raw "$outDir/install-freetype/vcpkg/status") -cnotmatch
+    '(?m)^Package: brotli\r?\nVersion: 1\.1\.0\r?\nPort-Version: 1\r?\n') {
+    throw 'Expected the pinned Brotli 1.1.0 port revision 1.'
 }
 
 $results = [ordered]@{}
