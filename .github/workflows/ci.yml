@@ -114,6 +114,7 @@ jobs:
             --sdk-archive-sha256 $env:PIXIE_SDK_ARCHIVE_SHA256 `
             --sdk-catalog-sha256 $env:PIXIE_SDK_CATALOG_SHA256 `
             --inspector-feed (Join-Path $env:RUNNER_TEMP 'pixie-inspector') `
+            --rebuild-native `
             --out (Join-Path $env:RUNNER_TEMP 'pixie-editor')
           if ($LASTEXITCODE -ne 0) { throw 'Editor candidate verification failed.' }
       - uses: actions/upload-artifact@v4

@@ -55,6 +55,13 @@ the Windows x64 ZIP, receipt and checksums under `assets/`. Pass
 `--upstream-feed` for an offline mirror of the remaining locked packages.
 The [native provenance manifest](../eng/native/win-x64/release-provenance.json)
 records the admitted DLLs, verified notice inputs and outstanding evidence.
+Use `--rebuild-native` to compile the Windows x64 ImGui DLLs from the checked-in
+[source pins](../eng/native/win-x64/rebuild/pins.json). The recipe requires the
+recorded MSVC and Windows SDK versions, Visual Studio's vcpkg, CMake, Ninja
+and network access to the pinned sources. It checks generated binding layouts,
+native exports and runtime imports before staging the replacements. The
+candidate includes `native-build.json` with the toolchain identities, source
+and DLL hashes, and the static Brotli decoder evidence.
 The packaged Hexa backend imports the Vulkan loader even for an OpenGL Editor
 session. The candidate also requires .NET Runtime 10 x64.
 
