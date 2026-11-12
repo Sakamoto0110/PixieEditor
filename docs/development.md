@@ -61,7 +61,11 @@ session. The candidate also requires .NET Runtime 10 x64.
 The Windows workflow runs the same command. Select the Engine and Inspector
 repositories, approved run IDs and artifact names, and both SDK hashes.
 Configure `PIXIE_SDK_ARTIFACT_TOKEN` for read access to both sets of workflow
-artifacts. The verification artifact is retained for 30 days.
+artifacts when using cross-repository downloads. A same-repository Inspector
+artifact uses the workflow token. If an existing public Engine release mirrors
+the approved run, supply its tag and the trusted run receipt SHA-256. The
+workflow checks that receipt and still requires the approved SDK ZIP and
+catalog SHA-256 values. The verification artifact is retained for 30 days.
 
 ## Local Editor data and test inputs
 

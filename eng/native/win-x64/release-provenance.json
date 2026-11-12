@@ -7,6 +7,8 @@
       "sha256": "f32e160a3232638630e5d9c4aacb7b2de1a816d90987f6cc3755458ba51bb9a2",
       "package": "Hexa.NET.ImGui.Backends/1.0.18",
       "binaryImport": "https://github.com/HexaEngine/Hexa.NET.ImGui/blob/5f870181ab440e8f749f75aad4c348cbb1a21162/Hexa.NET.ImGui.Backends/native/win-x64/ImGuiImpl.dll",
+      "linkerVersion": "14.44",
+      "richHeaderBuildIds": [33140, 35207, 35215],
       "observedVersions": {
         "Dear ImGui": "1.92.2b",
         "ProggyClean": "Exact compressed bytes from the Dear ImGui docking tag"
@@ -32,6 +34,8 @@
       "sha256": "2ce38f6b6bc5b00b068abf20097ab11327a575376a92aeedd921b6ae4a997ccf",
       "package": "Hexa.NET.ImGui.Backends.GLFW/1.0.18",
       "binaryImport": "https://github.com/HexaEngine/Hexa.NET.ImGui/blob/5f870181ab440e8f749f75aad4c348cbb1a21162/Hexa.NET.ImGui.Backends.GLFW/native/win-x64/ImGuiImplGLFW.dll",
+      "linkerVersion": "14.44",
+      "richHeaderBuildIds": [33140, 35207, 35215],
       "observedVersions": {
         "Dear ImGui": "1.92.2b",
         "ProggyClean": "Exact compressed bytes from the Dear ImGui docking tag"
@@ -52,6 +56,8 @@
       "sha256": "c1ff8afb947ebc537791a1b17b230162536522c5085c379a7ff2ebbac120bc5c",
       "package": "Hexa.NET.ImGui/2.2.9",
       "binaryImport": "https://github.com/HexaEngine/Hexa.NET.ImGui/blob/d45ed98bae66fb5647f404e3c0a3287d90aa63d3/Hexa.NET.ImGui/native/win-x64/cimgui.dll",
+      "linkerVersion": "14.44",
+      "richHeaderBuildIds": [33140, 35207, 35215],
       "observedVersions": {
         "Dear ImGui": "1.92.2b",
         "ProggyClean": "Exact compressed bytes from the Dear ImGui docking tag",
@@ -103,6 +109,8 @@
     "notices/libpng-1.6.50.txt": "16d9daaafbf63a31a5bdc91d4600972548fef5aaa1244202393288dbd079c49a",
     "notices/zlib-1.3.1.txt": "845efc77857d485d91fb3e0b884aaa929368c717ae8186b66fe1ed2495753243",
     "notices/bzip2-1.0.8.txt": "c6dbbf828498be844a89eaa3b84adbab3199e342eb5cb2ed2f0d4ba7ec0f38a3",
+    "notices/cimgui-LICENSE.txt": "cf6a4390b1ae5b4dfbc79a4ab33c58852db4f17b3f5c6d9300f278050223884d",
+    "notices/cimgui_impl-LICENSE.txt": "9dd8ac360e3a5f6acfb44ca9d9b8e4cac298082aa579c00620d27cc684c198d2",
     "notices/PixieInspector.txt": "f8811c84ff86c7d8303bb3f3d1228c05aea97da702b935d988a2e66f156d1936",
     "notices/PixieLib.txt": "f8811c84ff86c7d8303bb3f3d1228c05aea97da702b935d988a2e66f156d1936",
     "notices/FreeType-2.13.3-LICENSE.TXT": "2e3bbb7d7c5c396368dd0853a790ec29ce5b8647163dde42a0493fb0d6556b2b",
@@ -116,6 +124,8 @@
     "notices/libpng-1.6.50.txt": "https://github.com/pnggroup/libpng/blob/2b978915d82377df13fcbb1fb56660195ded868a/LICENSE",
     "notices/zlib-1.3.1.txt": "https://github.com/madler/zlib/blob/51b7f2abdade71cd9bb0e7a373ef2610ec6f9daf/LICENSE",
     "notices/bzip2-1.0.8.txt": "https://sourceware.org/pub/bzip2/bzip2-1.0.8.tar.gz",
+    "notices/cimgui-LICENSE.txt": "https://github.com/JunaMeinhold/cimgui/blob/d61baefa0ce2a9db938ffdeb29e64f90f44cc037/LICENSE",
+    "notices/cimgui_impl-LICENSE.txt": "https://github.com/HexaEngine/cimgui_impl/blob/7a459f54179587dc923749fed44ae34f78c370d3/LICENSE.txt",
     "notices/PixieInspector.txt": "PixieInspector commit c4dccc9c2bb7df7619f09e6b6da6cd7c5750d8b5 LICENSE",
     "notices/PixieLib.txt": "PixieLib commit a632d38df99e0906a73c651f0e0b4579e3ca38a7 LICENSE",
     "notices/FreeType-2.13.3-LICENSE.TXT": "https://github.com/freetype/freetype/blob/42608f77f20749dd6ddc9e0536788eaad70ea4b5/LICENSE.TXT",
