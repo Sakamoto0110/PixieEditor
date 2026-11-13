@@ -11,12 +11,14 @@ namespace PixieEditor.Ui;
 // the viewport's menu can both open it.
 internal sealed class AssetChooser(string? projectFolder)
 {
-    private const string Title = "Choose a file";
+    private const string FileTitle = "Choose a file";
+    private const string FolderTitle = "Choose a folder to import";
 
     private FolderBrowser? Browser;
     private Action<string>? Chosen;
     private bool OpenRequested;
-    private string Kind = "png";
+    private string? Kind = "png";
+    private string? LastImportFolder;
     private readonly Dictionary<string, string> LastFolders = [];
 
     // Shows the chooser for files of `kind` ("png", "ttf"); `chosen` gets the file's full path when
@@ -31,38 +33,63 @@ internal sealed class AssetChooser(string? projectFolder)
         OpenRequested = true;
     }
 
+    public void OpenFolder(Action<string> chosen)
+    {
+        Kind = null;
+        Chosen = chosen;
+        var start = LastImportFolder ?? projectFolder ?? Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+        Browser = new FolderBrowser(start);
+        OpenRequested = true;
+    }
+
     public void Draw()
     {
+        var title = Kind == null ? FolderTitle : FileTitle;
         if (OpenRequested)
         {
-            ImGui.OpenPopup(Title);
+            ImGui.OpenPopup(title);
             OpenRequested = false;
         }
 
         ImGui.SetNextWindowSize(new Vector2(560, 420), ImGuiCond.Appearing);
-        if (!ImGui.BeginPopupModal(Title, ImGuiWindowFlags.None))
+        if (!ImGui.BeginPopupModal(title, ImGuiWindowFlags.None))
             return;
 
-        var what = Kind == "png" ? "A PNG file." : Kind == "ttf" ? "A TrueType font (.ttf)." : $"A .{Kind} file.";
-        ImGui.TextDisabled(projectFolder == null
-            ? what
-            : $"{what} One outside the project is copied into its {ProjectAssets.FolderFor(Kind)} folder.");
+        if (Kind is { } kind)
+        {
+            var what = kind == "png" ? "A PNG file." : kind == "ttf" ? "A TrueType font (.ttf)." : $"A .{kind} file.";
+            ImGui.TextDisabled(projectFolder == null
+                ? what
+                : $"{what} One outside the project is copied into its {ProjectAssets.FolderFor(kind)} folder.");
+        }
+        else
+        {
+            ImGui.TextWrapped("Copies PNG and TTF files from this folder and its subfolders into the project.");
+        }
         Browser!.Draw("files", Math.Max(120f, ImGui.GetContentRegionAvail().Y - 60f));
-        var close = false;
-        if (Browser.ChosenFile is { } file)
+        string? chosen = null;
+        if (Kind is { } fileKind && Browser.ChosenFile is { } file)
         {
             if (Path.GetDirectoryName(file) is { } folder)
-                LastFolders[Kind] = folder;
-            Chosen?.Invoke(file);
-            close = true;
+                LastFolders[fileKind] = folder;
+            chosen = file;
         }
-
-        if (ImGui.Button("Cancel", new Vector2(120, 0)) || ImGui.IsKeyPressed(ImGuiKey.Escape))
-            close = true;
-        if (close)
+        if (Kind == null)
         {
+            ImGui.BeginDisabled(Browser.Current.Length == 0);
+            if (ImGui.Button("Import this folder"))
+                chosen = LastImportFolder = Browser.Current;
+            ImGui.EndDisabled();
+            ImGui.SameLine();
+        }
+        var cancel = ImGui.Button("Cancel", new Vector2(120, 0)) || ImGui.IsKeyPressed(ImGuiKey.Escape);
+        if (cancel || chosen != null)
+        {
+            var callback = Chosen;
             Chosen = null;
             ImGui.CloseCurrentPopup();
+            if (!cancel && chosen != null)
+                callback?.Invoke(chosen);
         }
 
         ImGui.EndPopup();

@@ -97,6 +97,8 @@ internal sealed partial class InspectorPanel
         var type = section.Type;
         foreach (var text in section.Texts)
         {
+            if (section.Name == "Sprite" && text.Name is "atlas" or "frameId")
+                continue;
             if (text.Kind == PixieFieldKind.RecordList)
             {
                 if (session.FieldInfo(type, text.Field).Editor == PixieEditorKind.LayerNames)

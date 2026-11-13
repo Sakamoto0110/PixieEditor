@@ -384,7 +384,8 @@ internal sealed class EditorWindow(EditorOptions options, string[] launchArgumen
         }
         var recorder = new Editing.EditRecorder(session, history, () => authoring.Recording);
         var files = new AssetChooser(session.ProjectFolder);
-        using var inspector = new InspectorPanel(session, authoring, recorder, files);
+        var assets = new AssetManagerPanel(session, files, selection, authoring);
+        using var inspector = new InspectorPanel(session, authoring, recorder, files) { OpenAtlasFrame = assets.OpenFrame };
         var viewport = new ViewportPanel(session, selection, authoring, files).Started();
         viewport.Recorder = recorder;
         session.Edits.GestureActive = () => recorder.HasPendingEdits || inspector.HasActiveAuthoringGesture ||
@@ -471,6 +472,7 @@ internal sealed class EditorWindow(EditorOptions options, string[] launchArgumen
         var confirmed = false;
         var toolbar = new Toolbar(session, viewport, authoring, selection)
         {
+            ShowAssets = assets.Open,
             Export = exportPanel.Available ? exportPanel.Open : null,
             Save = () => Save(session),
             AddCode = () =>
@@ -634,6 +636,7 @@ internal sealed class EditorWindow(EditorOptions options, string[] launchArgumen
                 confirmed = true;
             }
             viewport.Draw(frameDelta);
+            assets.Draw();
 #if PIXIE_DEVELOPMENT
             CaptureFinished = viewport.Capture?.Finished ?? false;
 #endif
@@ -986,7 +989,7 @@ internal sealed class EditorWindow(EditorOptions options, string[] launchArgumen
             case "image" when chosen.Length > 0 && session.TypeIndex("Sprite") is var spriteType and >= 0
                                && chosen.All(e => session.Has(e, spriteType)):
                 if (authoring.ImportAsset(argument, "png") is { } imagePath)
-                    authoring.SetText(chosen, spriteType, session.FieldIndex(spriteType, "image"), imagePath);
+                    authoring.SetDirectSpriteImage(chosen, spriteType, session.FieldIndex(spriteType, "image"), imagePath);
                 else
                     ok = false;
                 break;

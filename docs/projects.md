@@ -66,6 +66,22 @@ as it is. The editor creates no version-control files.
   instead of a second copy, and another file of the same name gets a number), and the status line
   names what was copied, so the project stays whole on another machine. The image of an open
   project's sprite that is saved again by a painting program shows at once.
+- **Project assets.** Open **View > Asset Manager** to browse project PNG images, TrueType fonts
+  and sprite atlases. Search by project-relative path, filter by type, and select a row to preview a
+  PNG or copy its path. Select a `.atlas.json` descriptor to search frames by name or ID and preview
+  the selected frame. Use **Refresh** after adding, repacking, moving, or removing files outside the
+  Editor.
+  In Edit mode, select scene entities with a Sprite component and click **Assign frame to selected
+  sprites**. The assignment is one undo step and saves the descriptor path and stable frame ID.
+  In the Sprite inspector, **Show atlas frame** opens that reference in the Asset Manager and shows
+  a diagnostic if its frame or assets are missing. **Use direct PNG** clears the atlas reference and
+  restores the sprite's authored PNG, region, and pivot. Choosing a PNG in the inspector also
+  switches the source. Atlas assignment requires an Engine SDK with sprite atlas support.
+  **Import...** accepts a PNG, a TTF, or a folder. Folder imports walk subfolders and preserve the
+  selected folder's name and subfolder paths under `images/` and `fonts/`. Unsupported files,
+  including ZIP archives, are skipped. Extract an archive outside the project first to import its
+  contents as a folder. Imports leave the source files in place, reuse identical destinations,
+  and number conflicting file names. Importing files leaves scene entities and references intact.
 - **Undo and redo.** Ctrl + Z undoes, Ctrl + Y or Ctrl + Shift + Z redo, and the Edit menu names
   what they would undo or redo. Every change to the scene in edit mode is one step: an inspector
   edit (a scrub, a drag on a slider, or a typed value, from press to release, over every selected

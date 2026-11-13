@@ -711,6 +711,9 @@ public sealed unsafe class EngineSession : IDisposable
     public bool Has(uint entity, int type) => PixieCapi.EntityHas(Handle, entity, type) != 0;
 
     public int FieldIndex(int type, string field)
+        => FindField(type, field) ?? throw new EngineException($"Type {TypeName(type)} has no field '{field}'.");
+
+    internal int? FindField(int type, string field)
     {
         if (FieldIndices.TryGetValue((type, field), out var index))
             return index;
@@ -725,7 +728,7 @@ public sealed unsafe class EngineSession : IDisposable
             }
         }
 
-        throw new EngineException($"Type {TypeName(type)} has no field '{field}'.");
+        return null;
     }
 
     public int FieldCount(int type) => PixieCapi.FieldCount(Handle, type);

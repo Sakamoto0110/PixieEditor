@@ -514,25 +514,30 @@ internal sealed partial class Authoring(EngineSession session, Selection selecti
     }
 
     // Changes the entities one by one, as one step: adding or removing a component.
-    public void Change(IReadOnlyList<uint> entities, string name, Action<uint> change)
+    public void Change(IReadOnlyList<uint> entities, string name, Action<uint> change) =>
+        ChangeTogether(entities, name, () =>
+        {
+            foreach (var entity in entities) change(entity);
+        });
+
+    private bool ChangeTogether(IReadOnlyList<uint> entities, string name, Action change)
     {
-        Guard(() =>
+        return Guard(() =>
         {
             if (Recording && session.HasParenting)
             {
                 RecordParentingChange(name, () =>
                 {
-                    foreach (var entity in entities) change(entity);
+                    change();
                     return true;
                 });
-                return 0;
+                return true;
             }
             var (ids, before) = Take(entities);
-            foreach (var entity in entities)
-                change(entity);
+            change();
             if (Recording && ids.Length > 0)
                 history.Record(new ReplaceStep(name, ids, before, session.Snapshot(entities)));
-            return 0;
+            return true;
         });
     }
 

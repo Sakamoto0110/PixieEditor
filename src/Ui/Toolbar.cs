@@ -18,6 +18,7 @@ internal sealed class Toolbar(EngineSession session, ViewportPanel viewport, Aut
     public Action AddCode { get; init; } = () => { };
     public Action BuildAndReopen { get; init; } = () => { };
     public Action OtherProject { get; init; } = () => { };
+    public Action ShowAssets { get; init; } = () => { };
     public Action? Export { get; init; }
 
     public void Draw()
@@ -52,6 +53,13 @@ internal sealed class Toolbar(EngineSession session, ViewportPanel viewport, Aut
                 authoring.Duplicate(chosen);
             if (ImGui.MenuItem("Delete", "Delete", false, chosen.Length > 0))
                 authoring.Delete(chosen);
+            ImGui.EndMenu();
+        }
+
+        if (ImGui.BeginMenu("View"))
+        {
+            if (ImGui.MenuItem("Asset Manager", "", false, project))
+                ShowAssets();
             ImGui.EndMenu();
         }
 

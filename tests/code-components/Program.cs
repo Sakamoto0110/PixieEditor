@@ -24,6 +24,7 @@ internal static class Program
     }
     private static int Main(string[] args)
     {
+        if (args is ["--project-assets"]) return ProjectAssetTests.Run();
         if (args.Length != 0 && args[0] == "--installed-fixture")
         {
             if (args.Length != 7 || args[5] is not ("--visual-environment" or "--visual-layout" or "--presentation" or "--scene-authoring"))

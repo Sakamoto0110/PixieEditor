@@ -46,6 +46,7 @@
           Condition="'$(_IsPublishing)' == 'true'" DependsOnTargets="RequireShippingPublish" />
 
   <ItemGroup>
+    <InternalsVisibleTo Include="PixieEditor.AssetTests" />
     <!-- The same icon for the window, which GLFW takes as pixels (Ui/WindowIcon.cs). -->
     <EmbeddedResource Include="assets/neko-purple-light.ico" LogicalName="PixieEditor.assets.neko-purple-light.ico" />
   </ItemGroup>
