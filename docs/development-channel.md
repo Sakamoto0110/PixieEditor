@@ -15,6 +15,12 @@ Editor executable, installed private SDK and project explicitly:
 dotnet C:/tools/PixieMcp.dll --kind editor --host C:/PixieEditor/PixieEditor.exe --sdk C:/sdk/private --native-configuration Debug --project C:/projects/sprites --captures C:/captures/editor
 ```
 
+Add `--editor-interactive on` to open a visible editor that accepts both local
+viewport input and MCP commands. During Play, focus the viewport to send keys
+to the game. If Play is paused, a simulation step consumes pending input. When
+launching the editor directly with `--dev-channel`, use `--dev-interactive on`.
+The bridge defaults to a hidden editor with agent-controlled viewport input.
+
 The server answers its client at once and opens the host in the background; the
 first tool call waits for the host's channel. A project with code is built before
 the editor opens its channel. The wait lasts up to `--startup-timeout <seconds>` (600 by default). A host that exits

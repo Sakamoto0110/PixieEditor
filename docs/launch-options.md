@@ -42,7 +42,7 @@ hand in the inspector. With several entities selected, a `--set` changes all of 
 gestures and the viewport menu's actions are logged.
 
 Private development builds additionally expose `--dev-channel`,
-`--dev-capture-dir`, `--dev-hidden`, `--quit-after-steps`, `--layout` and
+`--dev-capture-dir`, `--dev-hidden`, `--dev-interactive`, `--quit-after-steps`, `--layout` and
 `--reopen-probe`. These are separate from normal application use; see
 the [development channel](development-channel.md) and
 [profile selection](development.md).

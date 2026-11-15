@@ -44,9 +44,14 @@ as it is. The editor creates no version-control files.
   shows CMake output from the Editor-owned temporary build cache. CMake is
   taken from PATH or Visual Studio. On failure, **Try again** and **Open without
   code** are available. The latter opens with the SDK's built-in components
-  and preserves unknown component data. **Code, Build and reopen** waits for
-  the old Editor process to release its module, then rebuilds it and restores
-  the authored session. Use **Export game** to build a shipping player.
+  and preserves unknown component data. The Editor loads a snapshot of the built module
+  so the DLL held by a running Editor does not block a later link. With a compatible SDK,
+  **Code → Build and reload** builds in the background and loads the module in the same window.
+  The Editor applies it in Edit mode after the rebuilt project opens successfully. It carries
+  unsaved scene edits, the selection, and the viewport choices into the rebuilt World.
+  Reloading starts a new undo history. Build and load errors appear in **Code → Build output**.
+  SDKs without in-place reload support offer **Build and reopen**.
+  Use **Export game** to build a shipping player.
 - **Authoring.** **+ Create > Basic shape**, in the Entities panel, adds an entity named `entity <n>` to the
   scene, with a transform and a 24-unit circle, and selects it. In the inspector, Add component
   lists the types the selected entities do not all have, and a component's header has a close
