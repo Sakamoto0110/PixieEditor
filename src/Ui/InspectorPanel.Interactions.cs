@@ -11,7 +11,7 @@ internal sealed partial class InspectorPanel
 {
     private bool InteractionSubscribed;
     private ImGuiEditIcons? InteractionIcons;
-    private bool IconsLoaded;
+    private long IconsRevision = -1;
     private string? InteractionProblem;
     private sealed class CustomControlState;
     private Inspector? CustomControls;
@@ -57,9 +57,11 @@ internal sealed partial class InspectorPanel
             session.BindingsReplacing += BeforeBindingsReplace;
             InteractionSubscribed = true;
         }
-        if (!IconsLoaded)
+        if (IconsRevision != session.BindingRevision)
         {
-            IconsLoaded = true;
+            // Image textures belong to the native session replaced by reload.
+            IconsRevision = session.BindingRevision;
+            InteractionIcons = null;
             var folder = Path.Combine(AppContext.BaseDirectory, "assets", "inspector");
             var locked = session.Image(Path.Combine(folder, "lock.png"), out _);
             var chain = session.Image(Path.Combine(folder, "chain.png"), out _);

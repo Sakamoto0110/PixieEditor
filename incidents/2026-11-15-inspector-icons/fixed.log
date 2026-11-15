@@ -1,0 +1,59 @@
+[info] GL_VERSION: 4.5.0 Core Profile Context 22.20.27.09.230330
+[info] GL_RENDERER: AMD Radeon RX 580 2048SP
+[info] GL_VENDOR: ATI Technologies Inc.
+[info] GL debug output: off (not a debug context)
+PASS component views share current icons
+PASS Inspector texture is alive
+PASS Inspector texture has valid dimensions
+PASS GPU texture read succeeds
+PASS Inspector texture is alive
+PASS Inspector texture has valid dimensions
+PASS GPU texture read succeeds
+PASS initial lock and chain contain distinct image pixels
+PASS component views share current icons
+PASS Inspector texture is alive
+PASS Inspector texture has valid dimensions
+PASS GPU texture read succeeds
+PASS Inspector texture is alive
+PASS Inspector texture has valid dimensions
+PASS GPU texture read succeeds
+PASS same-session rebind: lock and chain retain their correct GPU pixels
+PASS same-session rebind: handles belong to current session
+PASS rejected candidate preserves current session
+PASS component views share current icons
+PASS Inspector texture is alive
+PASS Inspector texture has valid dimensions
+PASS GPU texture read succeeds
+PASS Inspector texture is alive
+PASS Inspector texture has valid dimensions
+PASS GPU texture read succeeds
+PASS rejected reload: lock and chain retain their correct GPU pixels
+PASS rejected reload: handles belong to current session
+[info] GL_VERSION: 4.5.0 Core Profile Context 22.20.27.09.230330
+[info] GL_RENDERER: AMD Radeon RX 580 2048SP
+[info] GL_VENDOR: ATI Technologies Inc.
+[info] GL debug output: off (not a debug context)
+PASS reload publishes a different native session
+PASS component views share current icons
+PASS Inspector texture is alive
+PASS Inspector texture has valid dimensions
+PASS GPU texture read succeeds
+PASS Inspector texture is alive
+PASS Inspector texture has valid dimensions
+PASS GPU texture read succeeds
+PASS reload 1: lock and chain retain their correct GPU pixels
+PASS reload 1: handles belong to current session
+[info] GL_VERSION: 4.5.0 Core Profile Context 22.20.27.09.230330
+[info] GL_RENDERER: AMD Radeon RX 580 2048SP
+[info] GL_VENDOR: ATI Technologies Inc.
+[info] GL debug output: off (not a debug context)
+PASS reload publishes a different native session
+PASS component views share current icons
+PASS Inspector texture is alive
+PASS Inspector texture has valid dimensions
+PASS GPU texture read succeeds
+PASS Inspector texture is alive
+PASS Inspector texture has valid dimensions
+PASS GPU texture read succeeds
+PASS reload 2: lock and chain retain their correct GPU pixels
+PASS reload 2: handles belong to current session

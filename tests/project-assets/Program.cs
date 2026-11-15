@@ -1,6 +1,7 @@
 return args switch
 {
     [] => ProjectAssetTests.Run(),
+    ["--inspector-icons-reload", var sdk, var hash, var project, var module] => InspectorIconReloadTests.Run(sdk, hash, project, module),
     ["--atlas-authoring", var sdk, var hash, var work] => AtlasAuthoringTests.Run(sdk, hash, work),
     ["--atlas-animation-playback", var sdk, var hash, var work] => AtlasAuthoringTests.Run(sdk, hash, work, exerciseAnimation: true),
     ["--atlas-animation", var work] => AtlasAnimationTests.Run(work),
