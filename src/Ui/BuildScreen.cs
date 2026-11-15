@@ -17,7 +17,7 @@ internal sealed class BuildScreen(ProjectBuild.BuildPlan plan) : IDisposable
     private static readonly Vector4 DimColor = new(0.6f, 0.6f, 0.6f, 1.0f);
     private const float Margin = 30f;
 
-    private readonly ProjectBuild Build = new(plan);
+    private readonly ProjectBuild Build = new(plan, stageModuleForEditor: true);
     private int LinesShown;
 
     public void Start() => Build.Start();

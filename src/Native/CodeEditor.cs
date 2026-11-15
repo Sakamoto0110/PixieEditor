@@ -11,23 +11,23 @@ namespace PixieEditor.Native;
 /// </remarks>
 internal static class CodeEditor
 {
-    internal static ProcessStartInfo StartInfo(string executable, string folder, string source)
+    internal static ProcessStartInfo StartInfo(string executable, string folder, string source, uint line = 0)
     {
         var path = ProjectCode.ResolveSource(folder, source);
         var info = new ProcessStartInfo(executable) { UseShellExecute = false, CreateNoWindow = true };
         info.ArgumentList.Add("--reuse-window");
         info.ArgumentList.Add(Path.GetFullPath(folder));
         info.ArgumentList.Add("--goto");
-        info.ArgumentList.Add(path);
+        info.ArgumentList.Add(line == 0 ? path : $"{path}:{line}");
         return info;
     }
 
-    internal static string? Open(string folder, string source)
+    internal static string? Open(string folder, string source, uint line = 0)
     {
         var executable = Find();
         if (executable == null)
             throw new EngineException("VS Code was not found. Install Visual Studio Code and enable its PATH command, or install it in the default user/system location.");
-        var start = StartInfo(executable, folder, source);
+        var start = StartInfo(executable, folder, source, line);
         string? notice = null;
         try
         {

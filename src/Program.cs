@@ -32,6 +32,7 @@ internal sealed record EditorOptions
     public string? DevChannel { get; init; }
     public string? DevCaptureDirectory { get; init; }
     public bool DevHidden { get; init; }
+    public bool DevInteractive { get; init; }
     public string? LayoutOverride { get; init; }
     public string? ReopenProbe { get; init; }
 #endif
@@ -94,6 +95,7 @@ internal static class Program
         + "\n  --dev-capture-dir <dir> fixed channel capture directory"
         + "\n  --layout <absolute-file>  isolated layout file for qualification"
         + "\n  --dev-hidden on|off    create a channel-driven editor hidden"
+        + "\n  --dev-interactive on|off  accept local viewport input alongside development commands"
         + "\n  --reopen-probe <path>  development-only code-reopen qualification result"
 #endif
         ;
@@ -185,6 +187,9 @@ internal static class Program
                 case "--dev-hidden" when value is "on" or "off":
                     options = options with { DevHidden = value == "on" };
                     break;
+                case "--dev-interactive" when value is "on" or "off":
+                    options = options with { DevInteractive = value == "on" };
+                    break;
                 case "--reopen-probe":
                     options = options with { ReopenProbe = value };
                     break;
@@ -232,6 +237,7 @@ internal static class Program
         if (options.DevChannel is { } channel && (channel.Length is < 1 or > 64 || channel.Any(c => !char.IsAsciiLetterOrDigit(c) && c != '-' && c != '_') ||
             options.Game == null && options.Project == null || options.QuitAfterSteps.HasValue || options.SaveAfter.HasValue || options.Commands.Count != 0 || options.Edits.Count != 0)) return false;
         if (options.DevChannel == null && options.DevCaptureDirectory != null) return false;
+        if (options.DevInteractive && (options.DevChannel == null || options.DevHidden)) return false;
         if (options.ReopenProbe != null && (options.Project == null || options.DevChannel != null)) return false;
 #endif
         return true;

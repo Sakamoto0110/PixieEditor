@@ -52,7 +52,7 @@ internal sealed class SessionEditGate
     internal void EndBindingRecovery() => BindingRecovery = false;
 
     internal static bool IsReadOnlyWorldCommand(string method, System.Text.Json.Nodes.JsonObject? parameters = null) =>
-        method is "world.hello" or "world.stats" or "world.types" or "world.type" or "world.entities" or
+        method is "world.hello" or "world.stats" or "world.types" or "world.type" or "world.entities" or "world.triggers" or
             "world.entity" or "world.get" or "world.pick" or "world.pick_box" or "world.view_to_world" or "world.world_to_view" ||
         method == "world.lighting_debug" && parameters?.ContainsKey("flags") != true;
 

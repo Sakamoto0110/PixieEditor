@@ -423,6 +423,19 @@ internal static class SdkSelectionTests
         File.AppendAllText(existing, "// User-authored edit\n"); var edited = EngineSdk.HashFile(existing);
         Refuses(() => ProjectCode.CreateComponent(codeProject, "InstalledProof", generatedSdk), "installed-component-refuses-existing-user-code", "Refusing to overwrite");
         Check(EngineSdk.HashFile(existing) == edited, "installed-component-collision-preserves-user-code");
+        var triggerAction = ProjectCode.CreateTriggerAction(codeProject, "CycleColor", generatedSdk);
+        var actionFile = Path.Combine(codeProject, triggerAction.Source);
+        File.AppendAllText(actionFile, "// User-authored action edit\n");
+        var actionHash = EngineSdk.HashFile(actionFile);
+        var unnamedAction = ProjectCode.CreateTriggerAction(codeProject, "", generatedSdk);
+        ProjectCode.CreateComponent(codeProject, "AfterAction", generatedSdk);
+        Check(triggerAction.Id.StartsWith("action:", StringComparison.Ordinal) && triggerAction.Id != unnamedAction.Id,
+            "generated-actions-have-distinct-stable-ids");
+        Check(File.ReadAllText(generatedSource).Contains(triggerAction.Id[7..], StringComparison.Ordinal) &&
+            EngineSdk.HashFile(actionFile) == actionHash && EngineSdk.HashFile(existing) == edited,
+            "registry-updates-preserve-action-id-and-user-implementations");
+        Refuses(() => ProjectCode.CreateTriggerAction(codeProject, "CycleColor", generatedSdk),
+            "installed-action-refuses-existing-user-code", "Refusing to overwrite");
         var customCode = Path.Combine(work, "Unfamiliar installed project"); Directory.CreateDirectory(customCode);
         File.WriteAllText(Path.Combine(customCode, "Test.pixie"), """{"name":"Unfamiliar project"}""");
         File.WriteAllText(Path.Combine(customCode, "CMakeLists.txt"), "# User CMake\n"); SdkRequirements.Adopt(customCode, generatedSdk);

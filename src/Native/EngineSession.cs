@@ -616,6 +616,25 @@ public sealed unsafe class EngineSession : IDisposable
     }
 
     internal void InputEvent(PixieInputEvent input) => Check(PixieCapi.InputEvent(Handle, in input), "send an ordered input event");
+    internal record TriggerActionSource(string Id, string Action, string File, uint Line);
+
+    internal TriggerActionSource[] ReadTriggerActionSources()
+    {
+        if (GameLibrary.TriggerActionSources == 0)
+            throw new EngineException("Select an Engine SDK with trigger action source support to view C++ actions.");
+        var read = (delegate* unmanaged[Cdecl]<nint, byte*, int, int*, PixieResult>)GameLibrary.TriggerActionSources;
+        int length;
+        Check(read(Handle, null, 0, &length), "measure trigger action sources");
+        if (length < 1 || length > 65536) throw new EngineException("Trigger action source metadata exceeds the supported bound.");
+        var bytes = new byte[length];
+        fixed (byte* output = bytes) Check(read(Handle, output, bytes.Length, &length), "read trigger action sources");
+        if (length < 1 || length > bytes.Length) throw new EngineException("Trigger action source metadata changed while reading.");
+        using var document = System.Text.Json.JsonDocument.Parse(bytes.AsMemory(0, length - 1));
+        return document.RootElement.EnumerateArray().Select(source => new TriggerActionSource(
+            source.GetProperty("id").GetString()!, source.GetProperty("action").GetString()!,
+            source.GetProperty("file").GetString()!, source.GetProperty("line").GetUInt32())).ToArray();
+    }
+
     internal string ComponentSource(int type)
     {
         Check(PixieCapi.TypeSource(Handle, type, null, 0, out var length), "measure component source");

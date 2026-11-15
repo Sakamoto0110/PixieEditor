@@ -56,6 +56,7 @@ internal sealed partial class InspectorPanel
         var readOnly = session.FieldInfo(type, field.Field).Flags.HasFlag(PixieFieldFlags.ReadOnly) ||
             session.FieldLocked(Entities[0], type, field.Field);
         var shapes = session.TypeName(type) == "CompoundCollider2D" && field.Name == "shapes";
+        var triggers = session.TypeName(itemType) == "InputTrigger";
         if (RecordCounts.TryGetValue((type, field.Field), out var previous) && previous != count) ReleaseRecords();
         RecordCounts[(type, field.Field)] = count;
         ImGui.TextUnformatted($"{field.Label} ({count})");
@@ -71,9 +72,12 @@ internal sealed partial class InspectorPanel
             if (expanded)
             {
                 var section = RecordInspector(type, field.Field, i);
+                if (triggers && section.Texts.FirstOrDefault(text => text.Name == "action") is { } action)
+                    DrawTriggerActionCode(type, field.Field, i, action.Field, readOnly);
                 ImGui.BeginDisabled(readOnly);
                 foreach (var text in section.Texts)
                 {
+                    if (triggers && text.Name == "action") continue;
                     if (text.Kind == PixieFieldKind.PointList) DrawRecordPoints(type, field.Field, i, text);
                     else if (text.Kind == PixieFieldKind.Text) DrawRecordText(type, field.Field, i, text);
                     else ImGui.TextDisabled("Nested record lists need a deeper editor.");

@@ -14,6 +14,8 @@ internal static class ProjectCode
     private const string Sources = ".pixie-code/Components.cmake";
     private const string Manifest = ".pixie-code/manifest.json";
     private const string CmakeBlock = "# BEGIN PIXIE COMPONENT SOURCES (managed)\npixie_project_components()\n# END PIXIE COMPONENT SOURCES (managed)";
+    private sealed record ActionEntry(string Name, string Id);
+    internal sealed record GeneratedAction(string Name, string Id, string Source);
     private static readonly HashSet<string> Keywords = new(("alignas alignof and and_eq asm atomic_cancel atomic_commit atomic_noexcept auto bitand bitor bool break case catch char char8_t char16_t char32_t class compl concept const consteval constexpr constinit const_cast continue co_await co_return co_yield decltype default delete do double dynamic_cast else enum explicit export extern false float for friend goto if inline int long mutable namespace new noexcept not not_eq nullptr operator or or_eq private protected public reflexpr register reinterpret_cast requires return short signed sizeof static static_assert static_cast struct switch synchronized template this thread_local throw true try typedef typeid typename union unsigned using virtual void volatile wchar_t while xor xor_eq module import").Split(' '), StringComparer.Ordinal);
 
     internal static bool ValidName(string? name) => name is not null && name.Length is > 0 and <= 64
@@ -182,27 +184,114 @@ internal static class ProjectCode
             if (File.Exists(CheckedPath(folder, relative)) || Directory.Exists(CheckedPath(folder, relative)))
                 throw new EngineException($"Refusing to overwrite existing component code: {relative}");
         CheckedPath(folder, Header); CheckedPath(folder, Sources);
-        (string Header, string Source)? installed = null;
-        if (sdk == null) EnsureRegistry(folder);
-        else
-        {
-            var support = ProjectBuild.RequireSupport(folder, sdk);
-            installed = ReadInstalledComponentTemplates(support);
-            if (!File.Exists(CheckedPath(folder, Manifest)))
-            {
-                if (ProjectBuild.HasCode(folder))
-                    throw new EngineException("This installed SDK project has no owned sdk-v1 registry. Its existing code and CMake were preserved.");
-                ProjectBuild.AddCode(folder, sdk);
-            }
-            try { _ = ProjectBuild.ReadTarget(folder, support); }
-            catch (Exception error) when (error is IOException or UnauthorizedAccessException or JsonException or KeyNotFoundException or InvalidOperationException or ArgumentException)
-            { throw new EngineException($"Could not verify the installed project registry: {error.Message}"); }
-        }
+        var support = sdk == null ? null : ProjectBuild.RequireSupport(folder, sdk);
+        var installed = support == null ? ((string Header, string Source)?)null : ReadInstalledComponentTemplates(support);
+        EnsureWritableRegistry(folder, sdk, support);
         var (metadata, manifestBytes) = ReadMetadata(folder);
         var components = (JsonArray)metadata["components"]!;
-        var names = components.Select(node => node!.GetValue<string>()).ToList();
-        if (names.Count > 4096 || names.Any(n => !ValidName(n)) || names.Distinct().Count() != names.Count || names.Contains(name))
-            throw new EngineException("Component registry has invalid/duplicate names, or this component already exists.");
+        if (components.Count >= 4096 || components.Any(node => node!.GetValue<string>() == name))
+            throw new EngineException("This component already exists or the component registry is full.");
+        var changes = new Dictionary<string, string>
+        {
+            [componentHeader] = (installed?.Header ?? File.ReadAllText(Path.Combine(Templates, "Component.hpp.in"))).Replace("@PIXIE_COMPONENT@", name),
+            [componentSource] = (installed?.Source ?? File.ReadAllText(Path.Combine(Templates, "Component.cpp.in"))).Replace("@PIXIE_COMPONENT@", name)
+        };
+        components.Add(name);
+        CommitRegistry(folder, metadata, manifestBytes, changes);
+        return componentSource;
+    }
+
+    internal static GeneratedAction CreateTriggerAction(string folder, string name, EngineSdk? sdk)
+    {
+        if (name.Length > 0 && !ValidName(name)) throw new EngineException("Use a valid C++ identifier for the trigger action.");
+        if (name.Length > 0 && ActionFileExists(folder, name))
+            throw new EngineException($"Refusing to overwrite existing trigger action code: {name}.");
+        EnsureWritableRegistry(folder, sdk, sdk == null ? null : ProjectBuild.RequireSupport(folder, sdk));
+        var (metadata, manifestBytes) = ReadMetadata(folder);
+        var actions = ReadActions(metadata);
+        if (actions.Length >= 4096) throw new EngineException("The trigger action registry is full.");
+        if (name.Length == 0)
+        {
+            name = "TriggerAction";
+            for (var suffix = 2; actions.Any(action => action.Name == name) || ActionFileExists(folder, name); ++suffix)
+                name = $"TriggerAction{suffix}";
+        }
+        if (actions.Any(action => string.Equals(action.Name, name, StringComparison.OrdinalIgnoreCase)))
+            throw new EngineException($"The trigger action {name} already exists. Choose it from the action list.");
+        string id;
+        do { id = RandomNumberGenerator.GetHexString(15, lowercase: true).Insert(0, "1"); }
+        while (actions.Any(action => action.Id == id));
+        var relative = $"src/actions/{name}.cpp";
+        var changes = new Dictionary<string, string>
+        {
+            [relative] = $$"""
+                #include "pixie/runtime/ComponentTypes.hpp"
+
+                namespace pixie::project_actions::Action_{{name}} {
+                namespace metadata { constexpr auto source = std::source_location::current(); }
+                namespace implementation {
+                void {{name}}([[maybe_unused]] pixie::Entity entity, [[maybe_unused]] const pixie::InputEvent& event) {
+                    // Add the code to run when this trigger fires.
+                }
+                }
+
+                void Register(ComponentTypes& types, TriggerActionId id) {
+                    types.AddTriggerAction(id, "{{name}}", &implementation::{{name}}, metadata::source);
+                }
+                }
+                """ + "\n"
+        };
+        if (metadata["triggerActions"] == null) metadata["triggerActions"] = new JsonArray();
+        ((JsonArray)metadata["triggerActions"]!).Add(new JsonObject { ["name"] = name, ["id"] = id });
+        CommitRegistry(folder, metadata, manifestBytes, changes);
+        return new(name, "action:" + id, relative);
+    }
+
+    private static bool ActionFileExists(string folder, string name)
+    {
+        var path = CheckedPath(folder, $"src/actions/{name}.cpp");
+        return File.Exists(path) || Directory.Exists(path);
+    }
+
+    private static ActionEntry[] ReadActions(JsonObject metadata)
+    {
+        if (!metadata.ContainsKey("triggerActions")) return [];
+        if (metadata["triggerActions"] is not JsonArray actions || actions.Count > 4096)
+            throw new EngineException("Invalid trigger action registry.");
+        var result = new List<ActionEntry>();
+        var names = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var ids = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var entry in actions)
+        {
+            if (entry is not JsonObject action || action["name"] is not JsonValue nameValue ||
+                !nameValue.TryGetValue<string>(out var name) || !ValidName(name) || !names.Add(name) ||
+                action["id"] is not JsonValue idValue || !idValue.TryGetValue<string>(out var id) ||
+                !Regex.IsMatch(id, @"\A1[0-9a-f]{15}\z") || !ids.Add(id))
+                throw new EngineException("Invalid or duplicate trigger action registration.");
+            result.Add(new(name, id));
+        }
+        return [.. result];
+    }
+
+    private static void EnsureWritableRegistry(string folder, EngineSdk? sdk, EngineSdk.ProjectSupport? support)
+    {
+        if (sdk == null || support == null) { EnsureRegistry(folder); return; }
+        if (!File.Exists(CheckedPath(folder, Manifest)))
+        {
+            if (ProjectBuild.HasCode(folder))
+                throw new EngineException("This installed SDK project has no owned sdk-v1 registry. Its existing code and CMake were preserved.");
+            ProjectBuild.AddCode(folder, sdk);
+        }
+        try { _ = ProjectBuild.ReadTarget(folder, support); }
+        catch (Exception error) when (error is IOException or UnauthorizedAccessException or JsonException or KeyNotFoundException or InvalidOperationException or ArgumentException)
+        { throw new EngineException($"Could not verify the installed project registry: {error.Message}"); }
+    }
+
+    private static void CommitRegistry(string folder, JsonObject metadata, byte[] manifestBytes, Dictionary<string, string> changes)
+    {
+        var names = ((JsonArray)metadata["components"]!).Select(node => node!.GetValue<string>()).ToArray();
+        if (names.Distinct().Count() != names.Length) throw new EngineException("Component registry has duplicate names.");
+        var actions = ReadActions(metadata);
         foreach (var (relative, key) in new[] { (Header, "headerHash"), (Registry, "sourceHash"), (Sources, "cmakeHash") })
             if (!File.Exists(CheckedPath(folder, relative)) || !string.Equals(Hash(File.ReadAllBytes(CheckedPath(folder, relative))), metadata[key]?.GetValue<string>(), StringComparison.OrdinalIgnoreCase))
                 throw new EngineException($"Generated registry was modified: {relative}. Preserve those edits before regenerating; user component files remain editable.");
@@ -215,25 +304,23 @@ internal static class ProjectCode
             [Sources] = metadata["cmakeHash"]!.GetValue<string>(),
             [Manifest] = Hash(manifestBytes)
         };
-        names.Add(name);
         var source = new StringBuilder("// Generated registry. Edit component descriptions in their own C++ sources.\n#include \"PixieComponents.generated.hpp\"\n#include \"pixie/runtime/ComponentTypes.hpp\"\n");
         foreach (var component in names) source.AppendLine($"#include \"components/{component}.hpp\"");
+        foreach (var action in actions)
+            source.AppendLine($"namespace pixie::project_actions::Action_{action.Name} {{ void Register(ComponentTypes&, TriggerActionId); }}");
         source.AppendLine("namespace pixie::generated {\nvoid DescribeComponents(ComponentTypes& types) {");
         foreach (var component in names) source.AppendLine($"    ::{component}::Describe(types);");
+        foreach (var action in actions) source.AppendLine($"    project_actions::Action_{action.Name}::Register(types, TriggerActionId{{0x{action.Id}ull}});");
         source.AppendLine("}\n}");
         var sources = new StringBuilder("# Generated source registry; user component implementations remain editable.\ntarget_sources(${PIXIE_COMPONENT_TARGET} PRIVATE\n    \"${CMAKE_CURRENT_SOURCE_DIR}/src/PixieComponents.generated.cpp\"\n");
         foreach (var component in names) sources.AppendLine($"    \"${{CMAKE_CURRENT_SOURCE_DIR}}/src/components/{component}.cpp\"");
+        foreach (var action in actions) sources.AppendLine($"    \"${{CMAKE_CURRENT_SOURCE_DIR}}/src/actions/{action.Name}.cpp\"");
         sources.AppendLine(")");
-        var changes = new Dictionary<string, string>
-        {
-            [componentHeader] = (installed?.Header ?? File.ReadAllText(Path.Combine(Templates, "Component.hpp.in"))).Replace("@PIXIE_COMPONENT@", name),
-            [componentSource] = (installed?.Source ?? File.ReadAllText(Path.Combine(Templates, "Component.cpp.in"))).Replace("@PIXIE_COMPONENT@", name),
-            [Registry] = Normalized(source.ToString()), [Sources] = Normalized(sources.ToString())
-        };
-        components.Add(name); UpdateHashes(metadata, changes);
+        changes[Registry] = Normalized(source.ToString());
+        changes[Sources] = Normalized(sources.ToString());
+        UpdateHashes(metadata, changes);
         changes[Manifest] = metadata.ToJsonString(new() { WriteIndented = true }) + "\n";
         WriteChanges(folder, changes, expected);
-        return componentSource;
     }
 
     private static void UpdateHashes(JsonObject metadata, Dictionary<string, string> changes)

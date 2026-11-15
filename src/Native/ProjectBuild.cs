@@ -16,6 +16,8 @@ internal sealed class ProjectBuild : IDisposable
         string Owner, byte[] Ownership, string[] Configure, string[] Build);
     private readonly BuildPlan? Plan;
     private readonly string Folder;
+    private readonly bool StageModuleForEditor;
+    private string? Library;
     // Written by the build's threads, read by the editor's.
     private readonly object Gate = new();
     private readonly List<string> Output = [];
@@ -23,10 +25,13 @@ internal sealed class ProjectBuild : IDisposable
     private Task? Work;
     private bool Disposed;
 
-    public ProjectBuild(BuildPlan plan) { Plan = plan; Folder = plan.Folder; }
+    public ProjectBuild(BuildPlan plan, bool stageModuleForEditor = false)
+    {
+        Plan = plan; Folder = plan.Folder; StageModuleForEditor = stageModuleForEditor;
+    }
     // Explicit source fixtures still use the separate source build entry.
     public ProjectBuild(string sourceFolder) => Folder = sourceFolder;
-    public string? BuiltLibrary => Succeeded ? Plan?.Library : null;
+    public string? BuiltLibrary => Succeeded ? Library : null;
 
     // The output so far, as a copy.
     public string[] Lines
@@ -194,12 +199,44 @@ internal sealed class ProjectBuild : IDisposable
             if (Step(Plan.CMake, Plan.Build) != 0) { Problem = Explain("Building the project failed; the errors are in red below."); return; }
             if (!File.Exists(ProjectCode.CheckedPath(Plan.Cache, $"bin/{Plan.Sdk.Configuration}/{Plan.Target}.dll")))
                 throw new EngineException("The build did not produce the declared SDK game module.");
+            Library = StageModuleForEditor ? StageModule(Plan) : Plan.Library;
             Add("Built.");
             Succeeded = true;
         }
         catch (Exception error) when (error is EngineException or IOException or UnauthorizedAccessException or JsonException or KeyNotFoundException or
                                       InvalidOperationException or System.ComponentModel.Win32Exception or ArgumentException)
         { Problem = error.Message; }
+    }
+
+    // Windows keeps loaded DLLs locked. Snapshot the module and its adjacent
+    // dependencies under the build lease so another editor can link new output.
+    private static string StageModule(BuildPlan plan)
+    {
+        var output = Path.GetDirectoryName(plan.Library)!;
+        var files = Directory.GetFiles(output, "*.dll").Order(StringComparer.OrdinalIgnoreCase)
+            .Select(path => (Name: Path.GetFileName(path), Hash: EngineSdk.HashFile(path))).ToArray();
+        var key = EngineSdk.HashBytes(JsonSerializer.SerializeToUtf8Bytes(files.Select(file => new[] { file.Name, file.Hash })));
+        var snapshot = ProjectCode.CheckedPath(plan.Cache, $"modules/{key}");
+        Directory.CreateDirectory(snapshot);
+        foreach (var file in files)
+        {
+            var destination = ProjectCode.CheckedPath(snapshot, file.Name);
+            if (!File.Exists(destination))
+            {
+                var temporary = destination + "." + Guid.NewGuid().ToString("N") + ".tmp";
+                try
+                {
+                    File.Copy(Path.Combine(output, file.Name), temporary);
+                    if (EngineSdk.HashFile(temporary) != file.Hash)
+                        throw new EngineException($"The build changed while snapshotting {file.Name}.");
+                    File.Move(temporary, destination);
+                }
+                finally { File.Delete(temporary); }
+            }
+            if (EngineSdk.HashFile(destination) != file.Hash)
+                throw new EngineException($"The cached module snapshot differs from its build: {destination}");
+        }
+        return ProjectCode.CheckedPath(snapshot, Path.GetFileName(plan.Library));
     }
 
     private void RunSource()

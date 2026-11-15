@@ -204,7 +204,7 @@ internal sealed unsafe partial class ViewportPanel(EngineSession session, Select
             ChannelVisible = false;
             // A saved collapsed/tabbed-out viewport must not stall a finite capture run.
             Capture?.Advance();
-            if (AgentDriven && !PlaybackBlocked) RenderTexture();
+            if (AgentRenderFailure != null && !PlaybackBlocked) RenderTexture();
 #endif
             Hovered = false;
             Focused = false;
@@ -284,10 +284,10 @@ internal sealed unsafe partial class ViewportPanel(EngineSession session, Select
     private uint RenderTexture()
     {
 #if PIXIE_DEVELOPMENT
-        if (AgentDriven)
+        if (AgentRenderFailure is { } report)
         {
             try { return session.Render(); }
-            catch (EngineException error) { AgentRenderFailure?.Invoke(error); return 0; }
+            catch (EngineException error) { report(error); return 0; }
         }
 #endif
         return session.Render();

@@ -30,6 +30,7 @@ internal static class GameLibrary
     public static bool IsLoaded => LoadSucceeded;
     internal static bool SupportsFieldGroups { get; private set; }
     internal static bool SupportsAuthoringTools { get; private set; }
+    internal static nint TriggerActionSources { get; private set; }
     internal static bool SupportsParenting => EngineHandle != 0 &&
         NativeLibrary.TryGetExport(EngineHandle, "pixie_entity_parent_2d", out _) &&
         NativeLibrary.TryGetExport(EngineHandle, "pixie_entities_set_parent_2d", out _);
@@ -61,6 +62,8 @@ internal static class GameLibrary
         SupportsFieldGroups = NativeLibrary.TryGetExport(EngineHandle, "pixie_field_group", out _);
         SupportsAuthoringTools = NativeLibrary.TryGetExport(EngineHandle, "pixie_field_authoring_lock", out _) &&
             NativeLibrary.TryGetExport(EngineHandle, "pixie_authoring_circle", out _);
+        _ = NativeLibrary.TryGetExport(EngineHandle, "pixie_trigger_action_sources_v2", out var triggerActionSources);
+        TriggerActionSources = triggerActionSources;
         if (!Path.Equals(sdk.RuntimePath, StringComparison.OrdinalIgnoreCase))
         {
             if ((sdk.CapabilityBits & 1) == 0) throw new EngineException("The selected SDK cannot load game modules.");

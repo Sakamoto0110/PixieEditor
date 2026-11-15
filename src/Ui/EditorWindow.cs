@@ -461,11 +461,11 @@ internal sealed class EditorWindow(EditorOptions options, string[] launchArgumen
                     recorder.Close();
                     return ran;
                 }) : null;
-        viewport.AgentDriven = channel != null;
+        viewport.AgentDriven = channel != null && !options.DevInteractive;
         if (channel != null)
         {
             viewport.AgentRenderFailure = channel.ReportRenderFailure;
-            controls = new SessionPanel(session, gameName) { Deterministic = true, InspectWorld = selection.SetWorld };
+            controls = new SessionPanel(session, gameName) { Deterministic = viewport.AgentDriven, InspectWorld = selection.SetWorld };
         }
 #endif
         var askToSave = false;
@@ -618,7 +618,8 @@ internal sealed class EditorWindow(EditorOptions options, string[] launchArgumen
 #if PIXIE_DEVELOPMENT
             if (channel != null)
             {
-                viewport.AdvancePlayback(frameDelta);
+                // An interactive viewport advances after processing its local input in Draw.
+                if (viewport.AgentDriven) viewport.AdvancePlayback(frameDelta);
                 channel.Drain();
                 if (session.Edits.IsBlocked) { FinishRecoveryFrame(now); continue; }
             }
@@ -632,6 +633,12 @@ internal sealed class EditorWindow(EditorOptions options, string[] launchArgumen
             if (inspector.TakeCreatedCodeComponent() is { } created)
             {
                 pendingCode = created;
+                leaving = Leaving.Reopen;
+                confirmed = true;
+            }
+            if (inspector.TriggerActionReopenRequested)
+            {
+                inspector.TriggerActionReopenRequested = false;
                 leaving = Leaving.Reopen;
                 confirmed = true;
             }
