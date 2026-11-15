@@ -1,4 +1,5 @@
 using Hexa.NET.GLFW;
+using System.Text.Json.Nodes;
 using PixieEditor.Editing;
 using PixieEditor.Native;
 using PixieEditor.Ui;
@@ -11,7 +12,7 @@ internal static class AtlasAuthoringTests
     // Generated 2x2 RGBA PNG.
     private const string Png = "iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAYAAABytg0kAAAAFElEQVR4nGP8z8Dwn4GBgYGJAQoAHxcCAk+Uzr4AAAAASUVORK5CYII=";
 
-    internal static unsafe int Run(string root, string catalogHash, string work)
+    internal static unsafe int Run(string root, string catalogHash, string work, bool exerciseAnimation = false)
     {
         var sdk = EngineSdk.Load(root, "authoring", "Release", "atlas fixture", expectedManifestSha256: catalogHash);
         GameLibrary.SelectSdk(sdk);
@@ -20,7 +21,9 @@ internal static class AtlasAuthoringTests
         GLFW.WindowHint(GLFW.GLFW_CONTEXT_VERSION_MAJOR, 4);
         GLFW.WindowHint(GLFW.GLFW_CONTEXT_VERSION_MINOR, 5);
         GLFW.WindowHint(GLFW.GLFW_OPENGL_PROFILE, GLFW.GLFW_OPENGL_CORE_PROFILE);
-        var window = GLFW.CreateWindow(64, 64, "Atlas authoring test context", default, default);
+        GLFW.WindowHint(0x0002000E, -1840); // GLFW_POSITION_X
+        GLFW.WindowHint(0x0002000F, 80); // GLFW_POSITION_Y
+        var window = GLFW.CreateWindow(1600, 900, "Atlas authoring test context", default, default);
         if (window.Handle == null)
         {
             GLFW.Terminate();
@@ -118,6 +121,7 @@ internal static class AtlasAuthoringTests
                 "reopen retains the authored IDs after rename and repack");
             Check(ProjectAtlas.Read(folder, AtlasPath, out var problem)?.Find(FrameId) is { Name: "Renamed", X: 1 } && problem == null,
                 "the browser resolves the renamed, moved frame by ID");
+            if (exerciseAnimation) CheckAnimation(reopened, folder, ids[0], atlasFile);
             return 0;
         }
         finally
@@ -125,6 +129,83 @@ internal static class AtlasAuthoringTests
             GLFW.DestroyWindow(window);
             GLFW.Terminate();
         }
+    }
+
+    private static void CheckAnimation(EngineSession session, string folder, ulong id, string atlasFile)
+    {
+        const string clip = "Walk";
+        var descriptor = JsonNode.Parse(AtlasFixture.Descriptor())!;
+        descriptor["frames"]![1]!["rect"]![2] = 2;
+        descriptor["animations"] = new JsonArray(new JsonObject
+        {
+            ["name"] = clip,
+            ["fps"] = 30,
+            ["loop"] = true,
+            ["frameIds"] = new JsonArray(FrameId, AtlasFixture.OtherId),
+        });
+        File.WriteAllText(atlasFile, descriptor.ToJsonString());
+
+        var selection = new Selection();
+        var history = new History();
+        var authoring = new Authoring(session, selection, history);
+        var recorder = new EditRecorder(session, history, () => authoring.Recording);
+        authoring.SceneEditor = new SceneDocumentEditor(session, selection, history, recorder, () => false, () => { });
+        var sprite = session.TypeIndex("Sprite");
+        var field = session.FieldIndex(sprite, "animation");
+        uint Entity() => session.Find(id)!.Value;
+        string Animation() => session.GetText(Entity(), sprite, field);
+
+        selection.Set([Entity()]);
+        Check(authoring.AssignAtlasAnimation(selection.Items, AtlasPath, clip) && Animation() == clip && history.UndoCount == 1,
+            "assigning an atlas animation to a sprite records one undo step");
+        authoring.Undo();
+        Check(Animation() == "", "undo returns the sprite to a still frame");
+        authoring.Redo();
+        Check(Animation() == clip, "redo restores the animation");
+        Check(authoring.AssignAtlasFrame([Entity()], AtlasPath, FrameId) && Animation() == "",
+            "assigning a still frame clears the animation");
+        authoring.Undo();
+        session.Save();
+
+        using var reopened = EngineSession.OpenProject(64, 64, folder);
+        uint ReopenedEntity() => reopened.Find(id)!.Value;
+        double DrawnWidth()
+        {
+            reopened.Render();
+            var quad = reopened.ViewQuad(ReopenedEntity())!;
+            return quad[1].X - quad[0].X;
+        }
+        Check(reopened.GetText(ReopenedEntity(), sprite, field) == clip,
+            "a saved scene reopens with its animation assigned");
+        Check(DrawnWidth() == 1, "the first animation frame renders in Edit mode");
+        reopened.Play();
+        reopened.Paused = true;
+        Check(DrawnWidth() == 1, "Play starts at the first frame");
+        reopened.Step();
+        Check(DrawnWidth() == 1, "the first fixed step stays within the first frame at 30 FPS");
+        reopened.Step();
+        Check(DrawnWidth() == 2, "the animation changes the resolved sprite geometry at 30 FPS");
+        reopened.Advance(0.5);
+        Check(DrawnWidth() == 2, "paused playback holds the current animation frame");
+        reopened.Step();
+        reopened.Step();
+        Check(DrawnWidth() == 1, "animation wraps back to the first frame");
+        reopened.Stop();
+        Check(DrawnWidth() == 1 && reopened.GetText(ReopenedEntity(), sprite, field) == clip,
+            "Stop restores the authored scene and first animation frame");
+
+        var fps = reopened.FieldIndex(sprite, "animationFps");
+        reopened.Set(ReopenedEntity(), sprite, fps, new PixieValue { X = 60 });
+        reopened.Save();
+        using var overridden = EngineSession.OpenProject(64, 64, folder);
+        uint OverriddenEntity() => overridden.Find(id)!.Value;
+        Check(overridden.Get(OverriddenEntity(), sprite, fps).X == 60, "the sprite's FPS override survives save and reopen");
+        overridden.Play();
+        overridden.Paused = true;
+        overridden.Step();
+        overridden.Render();
+        var faster = overridden.ViewQuad(OverriddenEntity())!;
+        Check(faster[1].X - faster[0].X == 2, "the second frame renders after one fixed step with an FPS override of 60");
     }
 
     private static void Check(bool value, string message)

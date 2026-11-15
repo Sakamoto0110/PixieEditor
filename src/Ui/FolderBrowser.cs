@@ -55,7 +55,7 @@ internal sealed class FolderBrowser
         try
         {
             var full = Path.GetFullPath(path);
-            if (Extension != null && File.Exists(full) && Path.GetExtension(full).Equals(Extension, StringComparison.OrdinalIgnoreCase))
+            if (File.Exists(full) && MatchesFile(full))
             {
                 ChosenFile = full;
                 return true;
@@ -79,7 +79,7 @@ internal sealed class FolderBrowser
             Files = Extension == null
                 ? []
                 : Directory.GetFiles(full)
-                    .Where(f => Path.GetExtension(f).Equals(Extension, StringComparison.OrdinalIgnoreCase))
+                    .Where(MatchesFile)
                     .Select(f => (f, Path.GetFileName(f)))
                     .OrderBy(f => f.Item2, StringComparer.OrdinalIgnoreCase)
                     .ToArray();
@@ -94,6 +94,10 @@ internal sealed class FolderBrowser
             return false;
         }
     }
+
+    private bool MatchesFile(string path) => Extension == ".atlas.json"
+        ? path.EndsWith(".atlas.json", StringComparison.OrdinalIgnoreCase)
+        : Extension != null && Path.GetExtension(path).Equals(Extension, StringComparison.OrdinalIgnoreCase);
 
     // Creates one child of the current location; an existing entry is never reused.
     internal bool CreateFolder(string name)

@@ -13,3 +13,7 @@ the SDK's authoring/Release DLL. At launch, the Editor uses the selected SDK
 profile's GLFW. The packaged DLL supports the start screen before an SDK is
 selected. Selecting an SDK with different GLFW bytes restarts the Editor
 before it opens or creates a project.
+
+The Spritesheet Builder uses StbImageSharp 2.30.16 to decode PNGs to RGBA
+and StbImageWriteSharp 1.16.7 to encode packed PNGs. The Engine SDK handles
+decoding and rendering the saved atlas in the Editor viewport and player.

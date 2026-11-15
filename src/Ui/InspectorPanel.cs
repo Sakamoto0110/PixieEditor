@@ -55,7 +55,7 @@ internal sealed partial class InspectorPanel(EngineSession session, Authoring au
     private sealed record TextField(int Field, string Name, string Label, string Tooltip, string Asset, PixieFieldKind Kind);
 
     private sealed record Section(int Type, string Name, Inspector Inspector, ImGuiInspectorView View, TextField[] Texts,
-        int[]? Fields = null, string[]? Group = null);
+        int[]? Fields = null, string[]? Group = null, bool DirectSpriteGeometry = false);
 
     private readonly List<Section> Sections = [];
     private long BoundRevision = -1;
@@ -239,30 +239,11 @@ internal sealed partial class InspectorPanel(EngineSession session, Authoring au
         ImGui.PushID(field.Field);
         var spriteImage = field.Name == "image" && session.TypeName(type) == "Sprite";
         var atlasFields = spriteImage ? authoring.AtlasFields(type) : null;
-        var atlasActive = false;
-        if (atlasFields is { } source)
+        if (atlasFields is { } source && !DrawSpriteSource(type, source))
         {
-            var references = Entities.Select(entity => new Editing.ProjectAtlas.Reference(
-                session.GetText(entity, type, source.Atlas), session.GetText(entity, type, source.Frame))).Distinct().ToArray();
-            atlasActive = references.Any(reference => reference.IsSet);
-            if (atlasActive)
-            {
-                if (references is [{ IsSet: true } reference])
-                {
-                    ImGui.TextWrapped($"Atlas: {reference.Atlas}");
-                    ImGui.TextWrapped($"Frame ID: {reference.FrameId}");
-                    if (reference.Atlas.Length == 0 || reference.FrameId.Length == 0)
-                        ImGui.TextColored(ProblemColor, "The atlas reference is incomplete.");
-                    else if (OpenAtlasFrame != null && ImGui.SmallButton("Show atlas frame"))
-                        OpenAtlasFrame(reference);
-                }
-                else
-                    ImGui.TextDisabled("Sprite sources are mixed.");
-                ImGui.BeginDisabled(!authoring.CanAssignSpriteSource(Entities, type, source.Atlas, source.Frame));
-                if (ImGui.SmallButton("Use direct PNG"))
-                    authoring.UseDirectSpriteImage(Entities, type);
-                ImGui.EndDisabled();
-            }
+            Typing.Remove((type, field.Field));
+            ImGui.PopID();
+            return;
         }
         void SetValue(uint[] entities, string value)
         {
@@ -278,13 +259,13 @@ internal sealed partial class InspectorPanel(EngineSession session, Authoring au
 
         var editLocked = session.FieldInfo(type, field.Field).Flags.HasFlag(PixieFieldFlags.ReadOnly) ||
             Entities.Any(entity => session.FieldLocked(entity, type, field.Field));
-        if (atlasActive && atlasFields is { } atlas)
-            editLocked |= !authoring.CanAssignSpriteSource(Entities, type, atlas.Atlas, atlas.Frame);
+        if (atlasFields is { } atlas)
+            editLocked |= !authoring.CanAssignSpriteSource(Entities, type, atlas.All);
 #if PIXIE_INSPECTOR_FIELD_INTERACTIONS
         editLocked |= DrawCustomEditControls(type, field.Field);
 #endif
         ImGui.BeginDisabled(editLocked);
-        var label = atlasActive ? "Direct PNG" : field.Label;
+        var label = spriteImage ? "PNG" : field.Label;
         ImGui.TextUnformatted(mixed ? $"{label} (mixed)" : label);
         if (field.Tooltip.Length > 0 && ImGui.IsItemHovered())
             ImGui.SetTooltip(field.Tooltip);
@@ -320,9 +301,7 @@ internal sealed partial class InspectorPanel(EngineSession session, Authoring au
             if (ImGui.IsItemHovered())
                 ImGui.SetTooltip($"Choose a .{field.Asset} file; one outside the project is copied into its " +
                                  $"{Editing.ProjectAssets.FolderFor(field.Asset)} folder.");
-            if (atlasActive)
-                ImGui.TextDisabled("Choosing a PNG switches the sprite source.");
-            else if (!mixed && field.Asset == "png")
+            if (!mixed && field.Asset == "png")
                 DrawPreview(values[0]);
             else if (!mixed && values[0].Length == 0)
                 ImGui.TextDisabled($"No file: choose a .{field.Asset} one.");
@@ -518,6 +497,7 @@ internal sealed partial class InspectorPanel(EngineSession session, Authoring au
         Typing.Clear();
         PointTyping.Clear();
         LayerTyping.Clear();
+        ResetSpriteSourceChoice();
         Entities = entities;
         Types = types;
         BoundRevision = session.BindingRevision;

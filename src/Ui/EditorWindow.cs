@@ -384,7 +384,7 @@ internal sealed class EditorWindow(EditorOptions options, string[] launchArgumen
         }
         var recorder = new Editing.EditRecorder(session, history, () => authoring.Recording);
         var files = new AssetChooser(session.ProjectFolder);
-        var assets = new AssetManagerPanel(session, files, selection, authoring);
+        using var assets = new AssetManagerPanel(session, files, selection, authoring);
         using var inspector = new InspectorPanel(session, authoring, recorder, files) { OpenAtlasFrame = assets.OpenFrame };
         var viewport = new ViewportPanel(session, selection, authoring, files).Started();
         viewport.Recorder = recorder;

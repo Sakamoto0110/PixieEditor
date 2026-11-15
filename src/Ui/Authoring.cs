@@ -292,8 +292,6 @@ internal sealed partial class Authoring(EngineSession session, Selection selecti
                 return Array.Empty<uint>();
             }
 
-            var position = session.FieldIndex(transform, "position");
-            var scale = session.FieldIndex(transform, "scale");
             var image = session.FieldIndex(sprite, "image");
             var names = session.Entities().Select(session.EntityName).ToHashSet();
             var made = new List<uint>();
@@ -304,20 +302,15 @@ internal sealed partial class Authoring(EngineSession session, Selection selecti
                 if (copiedTo != null)
                     copied.Add(copiedTo);
                 var stem = Path.GetFileNameWithoutExtension(file);
-                var name = Enumerable.Range(1, names.Count + 1).Select(n => n == 1 ? stem : $"{stem} {n}").First(n => !names.Contains(n));
+                var name = UniqueSpriteName(names, stem);
                 names.Add(name);
 
                 var entity = session.CreateEntity(name);
-                session.AddComponent(entity, transform);
                 var offset = made.Count * DuplicateOffset;
-                session.Set(entity, transform, position, new PixieValue { X = at.X + offset, Y = at.Y + offset });
-                session.AddComponent(entity, sprite);
+                InitializeSprite(entity, transform, sprite, (at.X + offset, at.Y + offset));
                 session.SetText(entity, sprite, image, path);
-                if (session.Image(path, out _) is { } size && Math.Max(size.Width, size.Height) > fit)
-                {
-                    var factor = fit / Math.Max(size.Width, size.Height);
-                    session.Set(entity, transform, scale, new PixieValue { X = factor, Y = factor });
-                }
+                if (session.Image(path, out _) is { } size)
+                    FitSprite(entity, transform, Math.Max(size.Width, size.Height), fit);
 
                 made.Add(entity);
             }
@@ -328,6 +321,23 @@ internal sealed partial class Authoring(EngineSession session, Selection selecti
                 Status.Show($"Copied into the project: {string.Join(", ", copied)}");
             return made.ToArray();
         }) ?? [];
+    }
+
+    private static string UniqueSpriteName(HashSet<string> names, string stem) =>
+        Enumerable.Range(1, names.Count + 1).Select(n => n == 1 ? stem : $"{stem} {n}").First(n => !names.Contains(n));
+
+    private void InitializeSprite(uint entity, int transform, int sprite, (double X, double Y) at)
+    {
+        session.AddComponent(entity, transform);
+        session.Set(entity, transform, session.FieldIndex(transform, "position"), new PixieValue { X = at.X, Y = at.Y });
+        session.AddComponent(entity, sprite);
+    }
+
+    private void FitSprite(uint entity, int transform, int largestSide, double fit)
+    {
+        if (largestSide <= fit) return;
+        var factor = fit / largestSide;
+        session.Set(entity, transform, session.FieldIndex(transform, "scale"), new PixieValue { X = factor, Y = factor });
     }
 
     // Writes a text field of the entities' component `type`, as one step; a file chosen for an asset

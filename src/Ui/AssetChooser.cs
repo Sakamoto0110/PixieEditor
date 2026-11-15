@@ -4,7 +4,7 @@ using PixieEditor.Editing;
 
 namespace PixieEditor.Ui;
 
-// Picks a file of one asset kind (a PNG for a sprite, a TrueType font for a text), in a modal window:
+// Picks a PNG, TrueType font, or project atlas in a modal window:
 // a FolderBrowser that lists the files of that kind, starting in the project's folder for the kind
 // (images/, fonts/), or the project's, or the folder of the last choice of that kind; a click on a
 // file chooses it. One for the whole editor, drawn every frame at the top level, so the inspector and
@@ -21,7 +21,7 @@ internal sealed class AssetChooser(string? projectFolder)
     private string? LastImportFolder;
     private readonly Dictionary<string, string> LastFolders = [];
 
-    // Shows the chooser for files of `kind` ("png", "ttf"); `chosen` gets the file's full path when
+    // Shows the chooser for files of `kind`; `chosen` gets the file's full path when
     // one is clicked.
     public void Open(string kind, Action<string> chosen)
     {
@@ -58,7 +58,7 @@ internal sealed class AssetChooser(string? projectFolder)
         if (Kind is { } kind)
         {
             var what = kind == "png" ? "A PNG file." : kind == "ttf" ? "A TrueType font (.ttf)." : $"A .{kind} file.";
-            ImGui.TextDisabled(projectFolder == null
+            ImGui.TextDisabled(kind == "atlas.json" ? "Choose a sprite atlas inside the project." : projectFolder == null
                 ? what
                 : $"{what} One outside the project is copied into its {ProjectAssets.FolderFor(kind)} folder.");
         }

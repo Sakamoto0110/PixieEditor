@@ -73,15 +73,50 @@ as it is. The editor creates no version-control files.
   Editor.
   In Edit mode, select scene entities with a Sprite component and click **Assign frame to selected
   sprites**. The assignment is one undo step and saves the descriptor path and stable frame ID.
-  In the Sprite inspector, **Show atlas frame** opens that reference in the Asset Manager and shows
-  a diagnostic if its frame or assets are missing. **Use direct PNG** clears the atlas reference and
-  restores the sprite's authored PNG, region, and pivot. Choosing a PNG in the inspector also
-  switches the source. Atlas assignment requires an Engine SDK with sprite atlas support.
+  In the Sprite Inspector, **Show in Asset Manager** opens the atlas reference. The Inspector shows
+  a diagnostic if its frame or assets are missing. Choose **Type > Single sprite** to restore the
+  sprite's authored PNG, region, and pivot. Atlas assignment requires an Engine SDK with sprite atlas support.
   **Import...** accepts a PNG, a TTF, or a folder. Folder imports walk subfolders and preserve the
   selected folder's name and subfolder paths under `images/` and `fonts/`. Unsupported files,
   including ZIP archives, are skipped. Extract an archive outside the project first to import its
   contents as a folder. Imports leave the source files in place, reuse identical destinations,
   and number conflicting file names. Importing files leaves scene entities and references intact.
+- **Spritesheet Builder.** In the Asset Manager, open **Spritesheet Builder...**. Choose
+  **Pack imported PNGs**, click the PNGs to add, set padding and edge extrusion, and click
+  **Preview packing**. Or choose **Slice a PNG sheet**, select a sheet, and add complete grid
+  cells using the cell size, offset, and gap. Drag on the sheet preview to add a manual region.
+  Select a frame to edit its name and normalized pivot. The preview marks the pivot relative
+  to the frame's top-left. For a sliced sheet, you can also edit the frame's pixel rectangle.
+  **Save atlas** writes the project-relative `.atlas.json` descriptor and selects the atlas in the
+  Asset Manager. Packed atlases save a generated PNG beside the descriptor. Sliced atlases use
+  the original PNG sheet.
+  Drag a frame from the Asset Manager onto an existing sprite to change its source, or into the
+  Viewport to place a new sprite in Edit mode. Choose **Edit in Spritesheet Builder** to reopen an
+  atlas. Renaming, changing pivots, and repacking preserve the IDs of the remaining frames.
+  If a frame is removed, a sprite using it keeps its reference and reports the missing frame.
+  Use **Show in Asset Manager** to locate its atlas, then assign a valid frame to repair the sprite.
+  Packed atlases retain their input paths so they can be rebuilt. Each distinct packed image has a
+  content-based file name. The descriptor switches to the new image only after it is written.
+  Previous generated images stay in the project and the normal exporter copies the assets
+  referenced by the saved scene.
+- **Atlas animations.** Select an atlas in the Asset Manager and choose **Animations...**.
+  Create a sequence and set its name and FPS. Add frames individually or enter a shared prefix
+  and click **Load numbered frames** to load matching names in numeric order. Select a step to
+  preview it or change its position in the sequence. **Play** loops through the sequence in the
+  Builder preview, using each frame's pivot. **Save atlas** stores the sequence in the optional
+  `animations` array of the v1 descriptor. Each entry has a `name`, an integer `fps` from 1 to
+  120, `loop: true`, and an ordered `frameIds` array.
+  Select one or more entities with a **Sprite** component, select the atlas in the Asset Manager,
+  choose a saved animation, and click **Assign animation to selected sprites**. Save the scene
+  and press **Play** to see it loop. The Inspector's **Show in Asset Manager** opens the assignment
+  in the Asset Manager. Assign a still frame to switch back to a single frame. Animation
+  assignment and playback require an Engine SDK with sprite animation support. If you rename
+  an assigned animation, assign the new name to the sprite before exporting.
+- **Sprite source in the Inspector.** Use **Type** to choose **Single sprite**, **Spritesheet**,
+  or **Animation**. A single sprite takes a PNG with an optional region and pivot. Choose a project
+  atlas and frame for a spritesheet, or choose an atlas and clip for an animation. The atlas frame
+  supplies its region and pivot. An animation starts with the clip's FPS. Editing **FPS** overrides
+  the rate for the selected sprite in the scene. **Use clip FPS** restores the clip's rate.
 - **Undo and redo.** Ctrl + Z undoes, Ctrl + Y or Ctrl + Shift + Z redo, and the Edit menu names
   what they would undo or redo. Every change to the scene in edit mode is one step: an inspector
   edit (a scrub, a drag on a slider, or a typed value, from press to release, over every selected

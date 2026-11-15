@@ -88,7 +88,7 @@ internal sealed partial class InspectorPanel
     private void DrawOpenBranch(uint entity)
     {
         if (!OpenBranches.TryGetValue(entity, out var binding) || binding == null)
-            OpenBranches[entity] = binding = new InspectorPanel(session, authoring, recorder, files);
+            OpenBranches[entity] = binding = new InspectorPanel(session, authoring, recorder, files) { OpenAtlasFrame = OpenAtlasFrame };
         var types = Enumerable.Range(0, session.TypeCount).Where(type => session.Has(entity, type)).ToArray();
         if (binding.BoundRevision != session.BindingRevision || !types.SequenceEqual(binding.Types))
             binding.Rebuild([entity], types);

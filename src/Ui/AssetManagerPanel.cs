@@ -5,7 +5,7 @@ using PixieEditor.Native;
 
 namespace PixieEditor.Ui;
 
-internal sealed class AssetManagerPanel(EngineSession session, AssetChooser chooser, Selection selection, Authoring authoring)
+internal sealed class AssetManagerPanel(EngineSession session, AssetChooser chooser, Selection selection, Authoring authoring) : IDisposable
 {
     private static readonly string[] Filters = ["All assets", "Images", "Fonts", "Sprite atlases"];
     private sealed record AtlasEntry(ProjectAtlas? Atlas, string? Problem);
@@ -17,6 +17,7 @@ internal sealed class AssetManagerPanel(EngineSession session, AssetChooser choo
     private string? selected;
     private bool selectedAtlas;
     private string? selectedFrame;
+    private string? selectedAnimation;
     private ProjectAtlas? filteredAtlas;
     private ProjectAtlas.Frame[] filteredFrames = [];
     private string frameSearch = "";
@@ -28,6 +29,8 @@ internal sealed class AssetManagerPanel(EngineSession session, AssetChooser choo
     private Task<Scan>? scan;
     private Task<ProjectAssets.ImportResult>? import;
     private ProjectAssets.ImportResult? importResult;
+    private readonly SpritesheetBuilderPanel builder = new(session);
+    private string? builderProblem;
 
     public void Open() => visible = true;
 
@@ -37,6 +40,7 @@ internal sealed class AssetManagerPanel(EngineSession session, AssetChooser choo
         focusRequested = true;
         Select(reference.Atlas, atlas: true);
         selectedFrame = reference.FrameId;
+        selectedAnimation = reference.Animation;
         frameSearch = "";
         filteredAtlas = null;
         search = "";
@@ -52,6 +56,7 @@ internal sealed class AssetManagerPanel(EngineSession session, AssetChooser choo
             return;
 
         FinishTasks();
+        builder.BeginFrame();
         if (!visible)
             return;
         if (scan == null && import == null && catalogRevision != ProjectAssets.Revision)
@@ -93,6 +98,22 @@ internal sealed class AssetManagerPanel(EngineSession session, AssetChooser choo
         if (ImGui.Button("Refresh"))
             StartScan(project);
         ImGui.EndDisabled();
+        ImGui.SameLine();
+        ImGui.BeginDisabled(!session.Editing);
+        if (ImGui.Button("Spritesheet Builder..."))
+            ImGui.OpenPopup("New spritesheet");
+        if (ImGui.BeginPopup("New spritesheet"))
+        {
+            if (ImGui.MenuItem("Pack imported PNGs"))
+                builder.Open(new(packsImages: true));
+            if (ImGui.MenuItem("Slice a PNG sheet"))
+                builder.Open(new(packsImages: false)
+                {
+                    Sheet = selected is { } path && ProjectAssets.IsAtlasAssetPath(path, ".png") ? path : null,
+                });
+            ImGui.EndPopup();
+        }
+        ImGui.EndDisabled();
         ImGui.EndDisabled();
 
         if (import != null)
@@ -103,6 +124,13 @@ internal sealed class AssetManagerPanel(EngineSession session, AssetChooser choo
             DrawProblems("Import errors", result.Problems);
         }
         DrawProblems("Browse errors", browseProblems);
+        if (builderProblem != null) ImGui.TextWrapped(builderProblem);
+        if (builder.Draw(project, paths) is { } saved)
+        {
+            builderProblem = null;
+            OpenFrame(saved);
+            Status.Show($"Saved atlas {saved.Atlas}");
+        }
     }
 
     private void DrawFilter()
@@ -178,6 +206,14 @@ internal sealed class AssetManagerPanel(EngineSession session, AssetChooser choo
             ImGui.TextWrapped(entry.Problem);
         if (entry.Atlas is not { } atlas)
             return;
+        ImGui.BeginDisabled(!session.Editing);
+        if (ImGui.SmallButton("Edit in Spritesheet Builder"))
+            EditAtlas(path, editAnimations: false);
+        ImGui.SameLine();
+        if (ImGui.SmallButton("Animations..."))
+            EditAtlas(path, editAnimations: true);
+        ImGui.EndDisabled();
+        DrawAnimationAssignment(path, atlas, entry.Problem);
         ImGui.SetNextItemWidth(-1);
         if (ImGui.InputTextWithHint("##atlas-frame-search", "Search frame names or IDs", ref frameSearch, 256) ||
             !ReferenceEquals(filteredAtlas, atlas))
@@ -204,6 +240,7 @@ internal sealed class AssetManagerPanel(EngineSession session, AssetChooser choo
                         if (ImGui.Selectable(VisibleLabel(label), frame.Id == selectedFrame))
                             selectedFrame = frame.Id;
                         if (ImGui.IsItemHovered()) ImGui.SetTooltip(frame.Id);
+                        if (session.Editing) AtlasFrameDrag.Source(path, frame);
                         ImGui.PopID();
                     }
                 }
@@ -227,7 +264,7 @@ internal sealed class AssetManagerPanel(EngineSession session, AssetChooser choo
         var fields = sprite < 0 ? null : authoring.AtlasFields(sprite);
         var targets = selection.Items;
         var canAssign = canPreview && session.Editing && fields is { } sourceFields &&
-            authoring.CanAssignSpriteSource(targets, sprite, sourceFields.Atlas, sourceFields.Frame) &&
+            authoring.CanAssignSpriteSource(targets, sprite, sourceFields.All) &&
             targets.All(entity => session.SceneId(entity) != null);
         ImGui.BeginDisabled(!canAssign);
         if (ImGui.Button("Assign frame to selected sprites"))
@@ -239,6 +276,54 @@ internal sealed class AssetManagerPanel(EngineSession session, AssetChooser choo
             ImGui.TextDisabled("Select editable scene sprites in Edit mode.");
     }
 
+    private void DrawAnimationAssignment(string path, ProjectAtlas atlas, string? problem)
+    {
+        if (atlas.Animations.Count == 0) return;
+        var animation = atlas.Animations.FirstOrDefault(clip => clip.Name == selectedAnimation);
+        ImGui.SetNextItemWidth(-1);
+        if (ImGui.BeginCombo("##atlas-animation", animation == null ? "Choose a sprite animation" : VisibleLabel(animation.Name)))
+        {
+            for (var index = 0; index < atlas.Animations.Count; index++)
+            {
+                var clip = atlas.Animations[index];
+                ImGui.PushID(index);
+                if (ImGui.Selectable(VisibleLabel(clip.Name), clip == animation))
+                {
+                    selectedAnimation = clip.Name;
+                    animation = clip;
+                }
+                ImGui.PopID();
+            }
+            ImGui.EndCombo();
+        }
+
+        var sprite = session.TypeIndex("Sprite");
+        var fields = sprite < 0 ? null : authoring.AtlasFields(sprite);
+        var targets = selection.Items;
+        var canAssign = animation != null && problem == null && session.Editing &&
+            fields is { Animation: not null } source &&
+            authoring.CanAssignSpriteSource(targets, sprite, source.All) &&
+            targets.All(entity => session.SceneId(entity) != null);
+        ImGui.BeginDisabled(!canAssign);
+        if (ImGui.Button("Assign animation to selected sprites") && animation != null)
+            authoring.AssignAtlasAnimation(targets, path, animation.Name);
+        ImGui.EndDisabled();
+        if (fields is not { Animation: not null })
+            ImGui.TextDisabled("Animation assignment needs an Engine SDK with sprite animation support.");
+        else if (animation != null && targets.Count == 0)
+            ImGui.TextDisabled("Select an entity with a Sprite component.");
+    }
+
+    private void EditAtlas(string path, bool editAnimations)
+    {
+        try
+        {
+            builder.Open(SpritesheetDraft.Open(session.ProjectFolder!, path), selectedFrame, editAnimations);
+            builderProblem = null;
+        }
+        catch (Exception error) when (SpritesheetBuilderPanel.IsFileProblem(error)) { builderProblem = error.Message; }
+    }
+
     private void Select(string path, bool atlas)
     {
         if (StringComparer.OrdinalIgnoreCase.Equals(selected, path) && selectedAtlas == atlas)
@@ -246,6 +331,7 @@ internal sealed class AssetManagerPanel(EngineSession session, AssetChooser choo
         selected = path;
         selectedAtlas = atlas;
         selectedFrame = null;
+        selectedAnimation = null;
         filteredAtlas = null;
         filteredFrames = [];
         frameSearch = "";
@@ -332,4 +418,6 @@ internal sealed class AssetManagerPanel(EngineSession session, AssetChooser choo
 
     private static bool IsFileProblem(Exception e) =>
         e is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException;
+
+    public void Dispose() => builder.Dispose();
 }

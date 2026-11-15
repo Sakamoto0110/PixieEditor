@@ -2,19 +2,20 @@ using System.Text.Json;
 
 namespace PixieEditor.Editing;
 
-// Reads the Engine's v1 sprite atlas contract for browsing. References keep the authored ID.
+// The Engine's v1 sprite atlas contract. References keep the authored ID.
 internal sealed class ProjectAtlas(string image, int width, int height, IReadOnlyList<ProjectAtlas.Frame> frames)
 {
     internal sealed record Frame(string Id, string Name, int X, int Y, int Width, int Height, double PivotX, double PivotY);
-    internal readonly record struct Reference(string Atlas, string FrameId)
+    internal readonly record struct Reference(string Atlas, string FrameId, string Animation = "")
     {
-        public bool IsSet => Atlas.Length != 0 || FrameId.Length != 0;
+        public bool IsSet => Atlas.Length != 0 || FrameId.Length != 0 || Animation.Length != 0;
     }
 
     public string Image { get; } = image;
     public int Width { get; } = width;
     public int Height { get; } = height;
     public IReadOnlyList<Frame> Frames { get; } = frames;
+    internal IReadOnlyList<AtlasAnimation> Animations { get; private init; } = [];
     public Frame? Find(string id) => Frames.FirstOrDefault(frame => frame.Id == id);
 
     public static ProjectAtlas? Read(string project, string path, out string? problem)
@@ -23,49 +24,60 @@ internal sealed class ProjectAtlas(string image, int width, int height, IReadOnl
         {
             using var input = File.Open(ProjectAssets.AtlasAssetFile(project, path, ".atlas.json"),
                 FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
-            // Accept a UTF-8 BOM, as the native descriptor parser does.
-            Span<byte> bom = stackalloc byte[3];
-            if (input.ReadAtLeast(bom, bom.Length, false) != bom.Length ||
-                !bom.SequenceEqual(new byte[] { 0xEF, 0xBB, 0xBF }))
-                input.Position = 0;
-            using var document = JsonDocument.Parse(input, new JsonDocumentOptions { MaxDepth = 9 });
-            var root = document.RootElement;
-            CheckMembers(root);
-            if (Text(root, "format") != "pixie-sprite-atlas" || Int(root, "version") != 1)
-                throw new IOException("Expected a version 1 pixie-sprite-atlas descriptor.");
-            var image = Text(root, "image");
-            var imageFile = ProjectAssets.AtlasAssetFile(project, image, ".png");
-            var size = Array(root, "imageSize", 2);
-            var width = Int(size[0]);
-            var height = Int(size[1]);
-            if (width == 0 || height == 0) throw new IOException("Image dimensions must be positive.");
-            var ids = new HashSet<string>(StringComparer.Ordinal);
-            var frames = new List<Frame>();
-            foreach (var entry in Array(root, "frames").EnumerateArray())
-            {
-                var id = Text(entry, "id");
-                if (id.Length != 32 || !id.Any(ch => ch != '0') || id.Any(ch => !"0123456789abcdef".Contains(ch)) || !ids.Add(id))
-                    throw new IOException($"Invalid or duplicate frame ID: {id}");
-                var name = Text(entry, "name");
-                var rect = Array(entry, "rect", 4);
-                var x = Int(rect[0]);
-                var y = Int(rect[1]);
-                var w = Int(rect[2]);
-                var h = Int(rect[3]);
-                if (name.Length == 0 || w == 0 || h == 0 || w > width - x || h > height - y)
-                    throw new IOException($"Frame {id} needs a name and a nonempty rectangle inside the image.");
-                var pivot = Array(entry, "pivot", 2);
-                frames.Add(new(id, name, x, y, w, h, Normalized(pivot[0]), Normalized(pivot[1])));
-            }
-            problem = File.Exists(imageFile) ? null : $"Atlas PNG is missing: {image}";
-            return new(image, width, height, frames);
+            using var document = ReadDocument(input);
+            var atlas = Parse(project, document.RootElement);
+            problem = File.Exists(ProjectAssets.AtlasAssetFile(project, atlas.Image, ".png"))
+                ? null : $"Atlas PNG is missing: {atlas.Image}";
+            return atlas;
         }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException or JsonException or
-                                      ArgumentException or InvalidOperationException)
+                                      ArgumentException or InvalidOperationException or KeyNotFoundException or FormatException)
         {
             problem = e.Message;
             return null;
         }
+    }
+
+    internal static JsonDocument ReadDocument(Stream input)
+    {
+        // Accept a UTF-8 BOM, as the native descriptor parser does.
+        Span<byte> bom = stackalloc byte[3];
+        ReadOnlySpan<byte> utf8Bom = [0xEF, 0xBB, 0xBF];
+        if (input.ReadAtLeast(bom, bom.Length, false) != bom.Length || !bom.SequenceEqual(utf8Bom))
+            input.Position = 0;
+        return JsonDocument.Parse(input, new JsonDocumentOptions { MaxDepth = 9 });
+    }
+
+    internal static ProjectAtlas Parse(string project, JsonElement root)
+    {
+        CheckMembers(root);
+        if (Text(root, "format") != "pixie-sprite-atlas" || Int(root, "version") != 1)
+            throw new IOException("Expected a version 1 pixie-sprite-atlas descriptor.");
+        var image = Text(root, "image");
+        _ = ProjectAssets.AtlasAssetFile(project, image, ".png");
+        var size = Array(root, "imageSize", 2);
+        var width = Int(size[0]);
+        var height = Int(size[1]);
+        if (width == 0 || height == 0) throw new IOException("Image dimensions must be positive.");
+        var ids = new HashSet<string>(StringComparer.Ordinal);
+        var frames = new List<Frame>();
+        foreach (var entry in Array(root, "frames").EnumerateArray())
+        {
+            var id = Text(entry, "id");
+            if (id.Length != 32 || !id.Any(ch => ch != '0') || id.Any(ch => !"0123456789abcdef".Contains(ch)) || !ids.Add(id))
+                throw new IOException($"Invalid or duplicate frame ID: {id}");
+            var name = Text(entry, "name");
+            var rect = Array(entry, "rect", 4);
+            var x = Int(rect[0]);
+            var y = Int(rect[1]);
+            var w = Int(rect[2]);
+            var h = Int(rect[3]);
+            if (name.Length == 0 || w == 0 || h == 0 || w > width - x || h > height - y)
+                throw new IOException($"Frame {id} needs a name and a nonempty rectangle inside the image.");
+            var pivot = Array(entry, "pivot", 2);
+            frames.Add(new(id, name, x, y, w, h, Normalized(pivot[0]), Normalized(pivot[1])));
+        }
+        return new ProjectAtlas(image, width, height, frames) { Animations = AtlasAnimation.Read(root).ToArray() };
     }
 
     private static void CheckMembers(JsonElement value, int depth = 0)

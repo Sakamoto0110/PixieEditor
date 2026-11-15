@@ -40,6 +40,30 @@ internal static class AssetPreview
         return true;
     }
 
+    internal static unsafe void DrawAnimationFrame((uint Texture, int Width, int Height) image, ProjectAtlas.Frame frame, int scale)
+    {
+        if (!SpritesheetPacking.Rect.Of(frame).Fits(image.Width, image.Height) ||
+            frame.PivotX is not (>= 0 and <= 1) || frame.PivotY is not (>= 0 and <= 1))
+        {
+            DrawProblem("The frame needs a valid rectangle and pivot for preview.");
+            return;
+        }
+
+        var canvas = Vector2.Max(new Vector2(1), ImGui.GetContentRegionAvail());
+        var origin = ImGui.GetCursorScreenPos();
+        var size = new Vector2(frame.Width, frame.Height) * scale;
+        var start = origin + canvas / 2 - new Vector2((float)frame.PivotX, (float)frame.PivotY) * size;
+        var dimensions = new Vector2(image.Width, image.Height);
+        var draw = ImGui.GetWindowDrawList();
+        draw.AddRectFilled(origin, origin + canvas, ImGui.GetColorU32(ImGuiCol.FrameBg));
+        draw.PushClipRect(origin, origin + canvas, true);
+        draw.AddImage(new ImTextureRef(null, new ImTextureID(image.Texture)), start, start + size,
+            new Vector2(frame.X + 0.5f, frame.Y + 0.5f) / dimensions,
+            new Vector2(frame.X + frame.Width - 0.5f, frame.Y + frame.Height - 0.5f) / dimensions);
+        draw.PopClipRect();
+        ImGui.Dummy(canvas);
+    }
+
     private static void DrawProblem(string problem)
     {
         ImGui.PushTextWrapPos(0f);

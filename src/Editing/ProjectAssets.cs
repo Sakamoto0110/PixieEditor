@@ -16,6 +16,7 @@ internal static class ProjectAssets
 
     private static int revision;
     public static int Revision => Volatile.Read(ref revision);
+    internal static void NotifyChanged() => Interlocked.Increment(ref revision);
 
     // The folder of the project that files of a kind are copied into, by the kind's extension
     // without the dot, as a field's asset kind names it.
@@ -34,6 +35,9 @@ internal static class ProjectAssets
     public static bool IsImage(string file) => IsKind(file, "png");
 
     public static bool IsAtlas(string file) => file.EndsWith(".atlas.json", StringComparison.OrdinalIgnoreCase);
+
+    internal static bool IsCatalogPath(string path) =>
+        !ProjectMetadataFolders.Contains(path.Split('/', 2)[0]);
 
     private static bool IsSupported(string file) => IsImage(file) || IsKind(file, "ttf");
 
@@ -93,7 +97,7 @@ internal static class ProjectAssets
                     continue;
                 }
                 pending = null;
-                Interlocked.Increment(ref revision);
+                NotifyChanged();
                 var path = Relative(project, target);
                 return (path, path);
             }

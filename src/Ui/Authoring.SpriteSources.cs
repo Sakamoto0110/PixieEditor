@@ -5,9 +5,14 @@ namespace PixieEditor.Ui;
 
 internal sealed partial class Authoring
 {
-    internal (int Atlas, int Frame)? AtlasFields(int type) =>
+    internal readonly record struct SpriteSourceFields(int Atlas, int Frame, int? Animation)
+    {
+        internal int[] All => Animation is { } animation ? [Atlas, Frame, animation] : [Atlas, Frame];
+    }
+
+    internal SpriteSourceFields? AtlasFields(int type) =>
         session.FindField(type, "atlas") is { } atlas && session.FindField(type, "frameId") is { } frame
-            ? (atlas, frame) : null;
+            ? new(atlas, frame, session.FindField(type, "animation")) : null;
 
     internal bool CanAssignSpriteSource(IReadOnlyList<uint> entities, int type, params int[] fields) =>
         !session.Edits.IsBlocked && entities.Count != 0 &&
@@ -23,36 +28,104 @@ internal sealed partial class Authoring
             if (type < 0 || AtlasFields(type) is not { } fields)
                 throw new EngineException("Select an Engine SDK with sprite atlas support.");
             if (session.ProjectFolder is not { } project || !session.Editing ||
-                !CanAssignSpriteSource(entities, type, fields.Atlas, fields.Frame) ||
+                !CanAssignSpriteSource(entities, type, fields.All) ||
                 entities.Any(entity => session.SceneId(entity) == null))
                 throw new EngineException("Select editable scene sprites in Edit mode.");
 
-            var atlas = ProjectAtlas.Read(project, path, out var problem);
-            if (atlas == null || problem != null)
-                throw new EngineException(problem ?? $"Cannot read atlas {path}.");
-            if (atlas.Find(id) == null)
-                throw new EngineException($"Frame {id} is missing from {path}. Refresh the Asset Manager.");
-            if (session.Image(atlas.Image, out problem) is not { } image)
-                throw new EngineException(problem ?? $"Cannot read atlas PNG {atlas.Image}.");
-            if (image.Width != atlas.Width || image.Height != atlas.Height)
-                throw new EngineException($"Atlas PNG {atlas.Image} is {image.Width} x {image.Height} px. Expected {atlas.Width} x {atlas.Height} px.");
+            _ = ValidateAtlasFrame(project, path, id);
 
-            return WriteSpriteSource(entities, type, "assign atlas frame", (fields.Atlas, path), (fields.Frame, id));
+            return WriteAtlasSource(entities, type, fields, "assign atlas frame", new(path, id));
         });
+    }
+
+    internal bool AssignAtlasAnimation(IReadOnlyList<uint> entities, string path, string name) => Guard(() =>
+    {
+        var type = session.TypeIndex("Sprite");
+        if (type < 0 || AtlasFields(type) is not { Animation: not null } fields)
+            throw new EngineException("Select an Engine SDK with sprite animation support.");
+        if (session.ProjectFolder is not { } project || !session.Editing ||
+            !CanAssignSpriteSource(entities, type, fields.All) || entities.Any(entity => session.SceneId(entity) == null))
+            throw new EngineException("Select editable scene sprites in Edit mode.");
+
+        var atlas = ValidateAtlas(project, path);
+        var animation = atlas.Animations.FirstOrDefault(clip => clip.Name == name)
+            ?? throw new EngineException($"Animation \"{name}\" is missing from {path}.");
+        if (AtlasAnimation.Problem(atlas.Animations, atlas.Frames) is { } problem)
+            throw new EngineException(problem);
+
+        return WriteAtlasSource(entities, type, fields, "assign sprite animation", new(path, animation.FrameIds[0], name));
+    });
+
+    internal uint? PlaceAtlasFrame(ProjectAtlas.Reference reference, (double X, double Y) at, double fit) =>
+        Guard<uint?>(() =>
+        {
+            var sprite = session.TypeIndex("Sprite");
+            var transform = session.TypeIndex("Transform2D");
+            if (sprite < 0 || transform < 0 || AtlasFields(sprite) is not { } fields)
+                throw new EngineException("Select an Engine SDK with sprite atlas support.");
+            if (session.ProjectFolder is not { } project || !session.Editing)
+                throw new EngineException("Place atlas sprites in Edit mode.");
+
+            var frame = ValidateAtlasFrame(project, reference.Atlas, reference.FrameId);
+            var names = session.Entities().Select(session.EntityName).ToHashSet();
+            var name = UniqueSpriteName(names, frame.Name.Replace('\0', ' '));
+            var entity = session.CreateEntity(name);
+            try
+            {
+                InitializeSprite(entity, transform, sprite, at);
+                session.SetText(entity, sprite, fields.Atlas, reference.Atlas);
+                session.SetText(entity, sprite, fields.Frame, reference.FrameId);
+                FitSprite(entity, transform, Math.Max(frame.Width, frame.Height), fit);
+                Record($"creation of sprite {Describe(entity)}", [entity], before: null, after: true);
+            }
+            catch (EngineException)
+            {
+                session.Destroy(entity);
+                throw;
+            }
+            selection.Set(entity);
+            return entity;
+        });
+
+    private ProjectAtlas.Frame ValidateAtlasFrame(string project, string path, string id)
+    {
+        var atlas = ValidateAtlas(project, path);
+        return atlas.Find(id) ?? throw new EngineException($"Frame {id} is missing from {path}. Refresh the Asset Manager.");
+    }
+
+    private ProjectAtlas ValidateAtlas(string project, string path)
+    {
+        var atlas = ProjectAtlas.Read(project, path, out var problem);
+        if (atlas == null || problem != null)
+            throw new EngineException(problem ?? $"Cannot read atlas {path}.");
+        if (session.Image(atlas.Image, out problem) is not { } image)
+            throw new EngineException(problem ?? $"Cannot read atlas PNG {atlas.Image}.");
+        if (image.Width != atlas.Width || image.Height != atlas.Height)
+            throw new EngineException($"Atlas PNG {atlas.Image} is {image.Width} x {image.Height} px. Expected {atlas.Width} x {atlas.Height} px.");
+        return atlas;
     }
 
     internal void UseDirectSpriteImage(IReadOnlyList<uint> entities, int type)
     {
         Guard(() => AtlasFields(type) is { } fields &&
-            WriteSpriteSource(entities, type, "use direct PNG", (fields.Atlas, ""), (fields.Frame, "")));
+            WriteAtlasSource(entities, type, fields, "use direct PNG", new("", "")));
     }
 
     internal void SetDirectSpriteImage(IReadOnlyList<uint> entities, int type, int image, string path)
     {
         // The PNG chooser and text field both select the direct source. Preserve region and pivot.
         Guard(() => AtlasFields(type) is { } fields
-            ? WriteSpriteSource(entities, type, "assign direct PNG", (image, path), (fields.Atlas, ""), (fields.Frame, ""))
+            ? WriteAtlasSource(entities, type, fields, "assign direct PNG", new("", ""), (image, path))
             : WriteSpriteSource(entities, type, "assign direct PNG", (image, path)));
+    }
+
+    private bool WriteAtlasSource(IReadOnlyList<uint> entities, int type, SpriteSourceFields fields, string action,
+        ProjectAtlas.Reference reference, params (int Field, string Value)[] additional)
+    {
+        (int Field, string Value)[] values = fields.Animation is { } animation
+            ? [(fields.Atlas, reference.Atlas), (fields.Frame, reference.FrameId), (animation, reference.Animation), .. additional]
+            : [(fields.Atlas, reference.Atlas), (fields.Frame, reference.FrameId), .. additional];
+        return WriteSpriteSource(entities, type, action, values);
     }
 
     private bool WriteSpriteSource(IReadOnlyList<uint> entities, int type, string name, params (int Field, string Value)[] values)
@@ -66,7 +139,7 @@ internal sealed partial class Authoring
         if (!CanAssignSpriteSource(entities, type, changes.Select(change => change.Field).Distinct().ToArray()))
             throw new EngineException("The sprite source is controlled by the project or the selection has changed.");
 
-        // Capture both strings together in the existing authoring history. All locks were checked
+        // Capture the source fields together in the existing authoring history. All locks were checked
         // above. If a native setter fails, restore the writes that succeeded before it.
         return ChangeTogether(entities, name, () =>
         {

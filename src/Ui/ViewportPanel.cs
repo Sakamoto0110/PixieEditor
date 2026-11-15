@@ -1,5 +1,6 @@
 using System.Numerics;
 using Hexa.NET.ImGui;
+using PixieEditor.Editing;
 using PixieEditor.Native;
 
 namespace PixieEditor.Ui;
@@ -178,7 +179,16 @@ internal sealed unsafe partial class ViewportPanel(EngineSession session, Select
             if (PlaybackBlocked) ImGui.TextDisabled("Playback halted. Use Stop to retry restoring the Edit scene.");
 
             // GL's first row is the bottom of the image; ImGui draws top down, so flip the coordinates.
-            if (texture != 0) ImGui.Image(new ImTextureRef(null, new ImTextureID(texture)), size, new Vector2(0, 1), new Vector2(1, 0));
+            if (texture != 0)
+            {
+                ImGui.Image(new ImTextureRef(null, new ImTextureID(texture)), size, new Vector2(0, 1), new Vector2(1, 0));
+                if (session.Editing && Mode == ViewportMode.Select
+#if PIXIE_DEVELOPMENT
+                    && !AgentDriven
+#endif
+                    && AtlasFrameDrag.Target() is { } frame)
+                    DropAtlasFrame(frame, MouseInView());
+            }
             if (texture != 0) DrawCircleGuide(guide, size);
             DrawSelection();
             DrawColliderHandles();
@@ -293,12 +303,7 @@ internal sealed unsafe partial class ViewportPanel(EngineSession session, Select
         var point = at ?? new Vector2(Width / 2f, Height / 2f);
         try
         {
-            var corner = session.ViewToWorld(0, 0);
-            var opposite = session.ViewToWorld(Width, Height);
-            var fit = 0.5 * Math.Min(Math.Abs(opposite.X - corner.X), Math.Abs(opposite.Y - corner.Y));
-            if (!(fit > 0))
-                fit = double.PositiveInfinity;
-            var made = authoring.PlaceImages(files, session.ViewToWorld(point.X, point.Y), fit);
+            var made = authoring.PlaceImages(files, session.ViewToWorld(point.X, point.Y), SpriteFit());
             if (made.Length > 0)
                 Log($"Dropped {made.Length} image(s) at ({point.X:0}, {point.Y:0})");
             return made;
@@ -308,6 +313,25 @@ internal sealed unsafe partial class ViewportPanel(EngineSession session, Select
             Status.Show(e.Message, error: true);
             return [];
         }
+    }
+
+    private void DropAtlasFrame(ProjectAtlas.Reference frame, Vector2 point)
+    {
+        var sprite = session.TypeIndex("Sprite");
+        if (sprite >= 0 && session.Pick(point.X, point.Y, 0) is { } hit && session.Has(hit, sprite))
+        {
+            if (authoring.AssignAtlasFrame([hit], frame.Atlas, frame.FrameId)) selection.Set(hit);
+            return;
+        }
+        authoring.PlaceAtlasFrame(frame, session.ViewToWorld(point.X, point.Y), SpriteFit());
+    }
+
+    private double SpriteFit()
+    {
+        var corner = session.ViewToWorld(0, 0);
+        var opposite = session.ViewToWorld(Width, Height);
+        var fit = 0.5 * Math.Min(Math.Abs(opposite.X - corner.X), Math.Abs(opposite.Y - corner.Y));
+        return fit > 0 ? fit : double.PositiveInfinity;
     }
 
     private bool GoesToGame(int button) => Mode == ViewportMode.Game || button == MiddleButton;

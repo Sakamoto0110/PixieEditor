@@ -12,15 +12,18 @@ internal sealed partial class InspectorPanel
     private void BuildFieldGroups(int type, ComponentHandle[] handles)
     {
         var name = session.TypeName(type);
+        var sprite = name == "Sprite";
         var groups = Enumerable.Range(0, session.FieldCount(type))
             .Select(field => (Index: field, Info: session.FieldInfo(type, field)))
             .Where(field => !session.Editing || !field.Info.Flags.HasFlag(PixieFieldFlags.Runtime))
+            .Where(field => !sprite || session.FieldName(type, field.Index) is not ("atlas" or "frameId" or "animation" or "animationFps"))
             .OrderBy(field => field.Info.Order)
-            .ToLookup(field => PresentationGroup(type, field.Index, field.Info.Flags), field => field.Index);
+            .ToLookup(field => (Path: PresentationGroup(type, field.Index, field.Info.Flags),
+                Geometry: sprite && session.FieldName(type, field.Index) is "region" or "pivot"), field => field.Index);
         var first = true;
-        foreach (var path in groups.Select(group => group.Key).DefaultIfEmpty(""))
+        foreach (var (path, geometry) in groups.Select(group => group.Key).DefaultIfEmpty(("", false)))
         {
-            var fields = groups[path].ToArray();
+            var fields = groups[(path, geometry)].ToArray();
             var inspector = InspectorFactory.Build(session, type, handles, () => RebuildRequested = true,
                 include: fields.Contains, showRebuild: first);
             first = false;
@@ -34,7 +37,7 @@ internal sealed partial class InspectorPanel
             ConfigureInteraction(view);
 #endif
             Sections.Add(new Section(type, name, inspector, view, texts, fields,
-                path.Length == 0 ? [] : path.Split('/')));
+                path.Length == 0 ? [] : path.Split('/'), geometry));
         }
     }
 
@@ -95,10 +98,13 @@ internal sealed partial class InspectorPanel
     private void DrawFieldGroup(Section section, ComponentHandle[] handles)
     {
         var type = section.Type;
+        if (section.DirectSpriteGeometry && !DirectSpriteGeometryVisible)
+        {
+            FinishHiddenGroup(section);
+            return;
+        }
         foreach (var text in section.Texts)
         {
-            if (section.Name == "Sprite" && text.Name is "atlas" or "frameId")
-                continue;
             if (text.Kind == PixieFieldKind.RecordList)
             {
                 if (session.FieldInfo(type, text.Field).Editor == PixieEditorKind.LayerNames)
