@@ -84,6 +84,20 @@ internal sealed unsafe partial class ViewportPanel(EngineSession session, Select
     // PressedOn/Boxing can remain cached after release; only PressedAt denotes a live press.
     internal bool HasActiveAuthoringGesture => PressedAt != null || Moving != null || ColliderDrag != null || LightDrag != null;
 
+    internal (int Width, int Height) RenderSize => (Math.Max(1, Width), Math.Max(1, Height));
+
+    internal void OnCodeReload()
+    {
+        KeyEvents.Pending.Clear();
+        Array.Clear(KeysSent);
+        Array.Clear(ButtonsSent);
+        InputModifiers = 0;
+        CursorInside = false;
+        EnvironmentScopes = [];
+        NextEnvironmentScopeRead = 0;
+        MenuTarget = null;
+    }
+
     public ViewportPanel Started()
     {
         // Start-screen/build-screen input belongs to the UI, never to the newly opened game.

@@ -14,7 +14,7 @@ internal sealed partial class InspectorPanel
     private string NewTriggerActionName = "";
     private string? TriggerSourceProblem;
     private string? TriggerCreationProblem;
-    internal bool TriggerActionReopenRequested { get; set; }
+    internal bool TriggerActionBuildRequested { get; set; }
 
     private void DrawTriggerActionCode(int type, int list, int item, int field, bool readOnly)
     {
@@ -77,7 +77,7 @@ internal sealed partial class InspectorPanel
 
             if (session.ProjectFolder is { } project)
             {
-                ImGui.BeginDisabled(!canEdit);
+                ImGui.BeginDisabled(!canEdit || CodeBuildPending());
                 ImGui.InputTextWithHint("##new-action-name", "Function name (optional)", ref NewTriggerActionName, 65);
                 ImGui.SameLine();
                 ImGui.BeginDisabled(NewTriggerActionName.Length > 0 && !ProjectCode.ValidName(NewTriggerActionName));
@@ -89,7 +89,7 @@ internal sealed partial class InspectorPanel
                         BindTriggerAction(entity, type, list, item, field, action.Id);
                         if (session.GetRecordText(entity, type, list, item, field) != action.Id)
                             throw new EngineException($"Created {action.Source}. Build and reopen, then choose it from the action list.");
-                        TriggerActionReopenRequested = true;
+                        TriggerActionBuildRequested = true;
                         ImGui.CloseCurrentPopup();
                     }
                     catch (Exception error) when (error is EngineException or IOException or UnauthorizedAccessException

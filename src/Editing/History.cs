@@ -111,6 +111,13 @@ internal sealed class History
     internal IStep? NextUndo => Done.Count == 0 ? null : Done[^1];
     internal IStep? NextRedo => Undone.Count == 0 ? null : Undone[^1];
 
+    internal void Clear()
+    {
+        Done.Clear();
+        Undone.Clear();
+        ++Revision;
+    }
+
     // Capacity is reserved before a candidate can commit. The serial publisher invokes no host
     // callbacks between this reservation and RecordPrepared; the existing UI is not exposed yet.
     internal void ReserveRecord() => Done.EnsureCapacity(Done.Count + 1);

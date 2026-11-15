@@ -34,6 +34,8 @@ internal static class Program
             args = [args[5], sdk.RuntimePath, args[6]];
         }
         if (args.Length == 2 && args[0] == "--sdk-selection") return SdkSelectionTests.Run(args[1]);
+        if (args.Length == 5 && args[0] == "--module-reload")
+            return ModuleReloadTests.Run(EngineSdk.Load(args[1], args[2], args[3], "fixture"), args[4]);
         if (args.Length == 7 && args[0] is "--process-reopen" or "--module-process-reopen")
         {
             var sdk = EngineSdk.Load(args[3], args[4], args[5], "fixture", expectedManifestSha256: args[6]);

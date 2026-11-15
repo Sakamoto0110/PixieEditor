@@ -17,6 +17,10 @@ internal sealed class Toolbar(EngineSession session, ViewportPanel viewport, Aut
     public Action Save { get; init; } = () => { };
     public Action AddCode { get; init; } = () => { };
     public Action BuildAndReopen { get; init; } = () => { };
+    public bool ReloadsCodeInPlace { get; init; }
+    public Func<bool> CodeBuildPending { get; init; } = () => false;
+    public Func<bool> HasBuildOutput { get; init; } = () => false;
+    public Action ShowBuildOutput { get; init; } = () => { };
     public Action OtherProject { get; init; } = () => { };
     public Action ShowAssets { get; init; } = () => { };
     public Action? Export { get; init; }
@@ -66,16 +70,19 @@ internal sealed class Toolbar(EngineSession session, ViewportPanel viewport, Aut
         if (project && ImGui.BeginMenu("Code"))
         {
             var hasCode = Native.ProjectBuild.HasCode(session.ProjectFolder!);
-            if (ImGui.MenuItem("Add code", "", false, !hasCode))
+            var canBuild = editing && !CodeBuildPending();
+            if (ImGui.MenuItem("Add code", "", false, !hasCode && canBuild))
                 AddCode();
             if (ImGui.IsItemHovered(ImGuiHoveredFlags.AllowWhenDisabled))
                 ImGui.SetTooltip(hasCode
                     ? "The project has code: CMakeLists.txt and src/."
-                    : "Writes CMakeLists.txt and src/ with a Project and an example Behaviour, then builds and reopens.");
-            if (ImGui.MenuItem("Build and reopen", "", false, hasCode))
+                    : "Writes the project source files and builds the module.");
+            if (ImGui.MenuItem(ReloadsCodeInPlace ? "Build and reload" : "Build and reopen", "", false, hasCode && canBuild))
                 BuildAndReopen();
             if (ImGui.IsItemHovered(ImGuiHoveredFlags.AllowWhenDisabled))
-                ImGui.SetTooltip("Builds the project's code and opens it again with it; the editor restarts to load it.");
+                ImGui.SetTooltip(ReloadsCodeInPlace ? "Builds and loads the module in this window." : "Builds the module and restarts the Editor to load it.");
+            if (HasBuildOutput() && ImGui.MenuItem("Build output"))
+                ShowBuildOutput();
             ImGui.EndMenu();
         }
 

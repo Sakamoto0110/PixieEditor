@@ -31,6 +31,7 @@ internal sealed partial class InspectorPanel(EngineSession session, Authoring au
     // while an inspector is drawing.
     public bool RebuildRequested { get; set; }
     private CodeReopen.Request? CreatedCodeComponent;
+    internal Func<bool> CodeBuildPending { get; init; } = () => false;
     internal CodeReopen.Request? TakeCreatedCodeComponent()
     {
         var request = CreatedCodeComponent; CreatedCodeComponent = null; return request;
@@ -193,7 +194,7 @@ internal sealed partial class InspectorPanel(EngineSession session, Authoring au
             ImGui.TextUnformatted("Create a C++ component");
             ImGui.SetNextItemWidth(230);
             ImGui.InputText("Name##code-component", ref NewCodeName, 128);
-            ImGui.BeginDisabled(!session.Editing || !ProjectCode.ValidName(NewCodeName) || session.TypeIndex(NewCodeName) >= 0);
+            ImGui.BeginDisabled(!session.Editing || CodeBuildPending() || !ProjectCode.ValidName(NewCodeName) || session.TypeIndex(NewCodeName) >= 0);
             if (ImGui.Button("Create component and rebuild"))
             {
                 try

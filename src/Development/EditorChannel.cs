@@ -99,6 +99,14 @@ internal sealed class EditorChannel : IDisposable
         var request = new JsonObject { ["jsonrpc"] = "2.0", ["id"] = --InternalId, ["method"] = method, ["params"] = parameters ?? new() };
         return JsonNode.Parse(Session.DispatchDevelopment(request.ToJsonString()))!.AsObject();
     }
+
+    internal void PrepareReload(EngineSession candidate)
+    {
+        if (!Hello) return;
+        var request = new JsonObject { ["jsonrpc"] = "2.0", ["id"] = --InternalId, ["method"] = "world.hello", ["params"] = new JsonObject() };
+        var response = JsonNode.Parse(candidate.DispatchDevelopment(request.ToJsonString()))!.AsObject();
+        if (response["result"] == null) throw new EngineException("The rebuilt module did not initialize its development channel.");
+    }
     public void Drain()
     {
         ++Frame;

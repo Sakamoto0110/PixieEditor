@@ -28,8 +28,8 @@ public sealed unsafe class EngineSession : IDisposable
     private readonly int OwnerThread = Environment.CurrentManagedThreadId;
     internal int LastSnapshotNativeCalls { get; private set; }
     internal int SnapshotBufferCapacity => SnapshotBuffer?.Length ?? 0;
-    private readonly Dictionary<string, int> TypeIndices = [];
-    private readonly Dictionary<(int Type, string Field), int> FieldIndices = [];
+    private Dictionary<string, int> TypeIndices = [];
+    private Dictionary<(int Type, string Field), int> FieldIndices = [];
     /// <summary>Session-local stamp for discarding bindings after invalidation.</summary>
     internal long BindingRevision { get; private set; }
     internal event Action? BindingsReplacing;
@@ -82,6 +82,44 @@ public sealed unsafe class EngineSession : IDisposable
         CheckVersion();
         Check(PixieCapi.SessionOpenProject(width, height, folder, out var handle), "open the project");
         return new EngineSession(handle) { ProjectFolder = folder };
+    }
+
+    internal EngineSession OpenReloadCandidate(int width, int height, string module)
+    {
+        var open = GameLibrary.OpenProjectModule ?? throw new EngineException("The selected SDK does not support reloading project code.");
+        var folder = ProjectFolder ?? throw new EngineException("Open a project before reloading code.");
+        Check(open(width, height, folder, module, out var handle), "open the rebuilt project module");
+        EngineSession? candidate = null;
+        try
+        {
+            candidate = new EngineSession(handle) { ProjectFolder = folder };
+            if (Unsaved) candidate.ProjectRestore(ProjectSnapshot());
+            var environment = ViewportEnvironmentSelection;
+            var camera = ViewportCameraSelection;
+            candidate.SelectViewportEnvironment(environment.Kind, environment.SceneId);
+            candidate.SelectViewportCamera(camera.Kind, camera.Entity, camera.Scene);
+            candidate.FreeCamera = FreeCamera;
+            candidate.PhysicsDebug = PhysicsDebug;
+            candidate.LightingDebug = LightingDebug;
+            candidate.TimeScale = TimeScale;
+            candidate.Cursor(-1, -1);
+            return candidate;
+        }
+        catch
+        {
+            if (candidate != null) candidate.Dispose();
+            else PixieCapi.SessionDestroy(handle);
+            throw;
+        }
+    }
+
+    internal void PublishReload(EngineSession candidate, string module)
+    {
+        GameLibrary.PublishProjectModule(module);
+        (Handle, candidate.Handle) = (candidate.Handle, Handle);
+        TypeIndices = candidate.TypeIndices;
+        FieldIndices = candidate.FieldIndices;
+        ++BindingRevision;
     }
 
     // Makes a new project in `folder`, which must be empty or not exist yet; needs no session.

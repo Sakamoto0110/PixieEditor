@@ -5,10 +5,11 @@ using System.Text;
 namespace PixieEditor.Native;
 
 // Resolves the C API to the shared engine and selects a development game's module.
-// A process hosts one game; another game opens in another editor process.
+// The Engine SDK is pinned for the process. Project sessions can own their own modules.
 internal static class GameLibrary
 {
     private static string? Path;
+    private static string? ProjectModule;
     private static bool ResolverInstalled;
     private static bool LoadSucceeded;
     private static nint EngineHandle;
@@ -26,11 +27,22 @@ internal static class GameLibrary
     // The engine's library for a project without code.
     public const string SceneGame = "pixie-scene";
 
-    public static string Loaded => LoadSucceeded ? Path! : throw new InvalidOperationException("No game library is loaded.");
+    public static string Loaded => LoadSucceeded ? ProjectModule ?? Path! : throw new InvalidOperationException("No game library is loaded.");
     public static bool IsLoaded => LoadSucceeded;
     internal static bool SupportsFieldGroups { get; private set; }
     internal static bool SupportsAuthoringTools { get; private set; }
     internal static nint TriggerActionSources { get; private set; }
+    [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+    internal delegate PixieResult OpenModuleProject(int width, int height,
+        [MarshalAs(UnmanagedType.LPUTF8Str)] string folder, [MarshalAs(UnmanagedType.LPUTF8Str)] string path, out nint handle);
+    internal static OpenModuleProject? OpenProjectModule { get; private set; }
+
+    internal static void PublishProjectModule(string path)
+    {
+        // Existing sessions lease their own module; retire the startup default before destroying the old session.
+        if (ProjectModule == null) EngineSession.Check(PixieCapi.ModuleLoad(null), "retire the startup module default");
+        ProjectModule = path;
+    }
     internal static bool SupportsParenting => EngineHandle != 0 &&
         NativeLibrary.TryGetExport(EngineHandle, "pixie_entity_parent_2d", out _) &&
         NativeLibrary.TryGetExport(EngineHandle, "pixie_entities_set_parent_2d", out _);
@@ -64,6 +76,8 @@ internal static class GameLibrary
             NativeLibrary.TryGetExport(EngineHandle, "pixie_authoring_circle", out _);
         _ = NativeLibrary.TryGetExport(EngineHandle, "pixie_trigger_action_sources_v2", out var triggerActionSources);
         TriggerActionSources = triggerActionSources;
+        if (NativeLibrary.TryGetExport(EngineHandle, "pixie_session_open_project_module", out var openModule))
+            OpenProjectModule = Marshal.GetDelegateForFunctionPointer<OpenModuleProject>(openModule);
         if (!Path.Equals(sdk.RuntimePath, StringComparison.OrdinalIgnoreCase))
         {
             if ((sdk.CapabilityBits & 1) == 0) throw new EngineException("The selected SDK cannot load game modules.");

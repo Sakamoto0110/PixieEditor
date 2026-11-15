@@ -385,7 +385,12 @@ internal sealed class EditorWindow(EditorOptions options, string[] launchArgumen
         var recorder = new Editing.EditRecorder(session, history, () => authoring.Recording);
         var files = new AssetChooser(session.ProjectFolder);
         using var assets = new AssetManagerPanel(session, files, selection, authoring);
-        using var inspector = new InspectorPanel(session, authoring, recorder, files) { OpenAtlasFrame = assets.OpenFrame };
+        using var codeBuild = new CodeBuildPanel();
+        using var inspector = new InspectorPanel(session, authoring, recorder, files)
+        {
+            OpenAtlasFrame = assets.OpenFrame,
+            CodeBuildPending = () => codeBuild.Pending
+        };
         var viewport = new ViewportPanel(session, selection, authoring, files).Started();
         viewport.Recorder = recorder;
         session.Edits.GestureActive = () => recorder.HasPendingEdits || inspector.HasActiveAuthoringGesture ||
@@ -470,37 +475,65 @@ internal sealed class EditorWindow(EditorOptions options, string[] launchArgumen
 #endif
         var askToSave = false;
         var confirmed = false;
+        var reloadInPlace = GameLibrary.OpenProjectModule != null;
+#if PIXIE_DEVELOPMENT
+        // The process-reopen qualification option exercises the legacy restart path.
+        if (options.ReopenProbe != null) reloadInPlace = false;
+#endif
+        void BuildCode(bool addCode = false)
+        {
+            if (!session.Editing) { Status.Show("Stop Play before adding or rebuilding project code.", error: true); return; }
+            if (codeBuild.Pending) return;
+            var folder = session.ProjectFolder!;
+            var sdk = SelectedSdk!;
+            try
+            {
+                if (addCode) ProjectBuild.AddCode(folder, sdk);
+                var plan = ProjectBuild.Prepare(folder, sdk);
+                if (reloadInPlace) codeBuild.Start(plan);
+                else
+                {
+                    leaving = Leaving.Reopen;
+                    confirmed = true;
+                }
+            }
+            catch (EngineException error) { Status.Show(error.Message, error: true); }
+        }
+
+        void ApplyReload(string module)
+        {
+            recorder.Close();
+            session.PrepareBindingsReplacement();
+            var size = viewport.RenderSize;
+            using var candidate = session.OpenReloadCandidate(size.Width, size.Height, module);
+            var attachment = pendingCode is { } request ? CodeReopen.ResolveAttachment(candidate, request) : ((int Type, uint[] Entities)?)null;
+#if PIXIE_DEVELOPMENT
+            channel?.PrepareReload(candidate);
+#endif
+            candidate.Render();
+            selection.PreserveThrough(session, () => session.PublishReload(candidate, module));
+            history.Clear();
+            viewport.OnCodeReload();
+            if (attachment is { } attach)
+            {
+                authoring.AddComponent(attach.Entities, attach.Type);
+                if (attach.Entities.Any(entity => !session.Has(entity, attach.Type)))
+                    throw new EngineException("Project code was reloaded; the new component still needs to be attached.");
+                pendingCode = null;
+            }
+        }
+
         var toolbar = new Toolbar(session, viewport, authoring, selection)
         {
             ShowAssets = assets.Open,
             Export = exportPanel.Available ? exportPanel.Open : null,
             Save = () => Save(session),
-            AddCode = () =>
-            {
-                if (!session.Editing) { Status.Show("Stop Play before adding or rebuilding project code.", error: true); return; }
-                try
-                {
-                    ProjectBuild.AddCode(session.ProjectFolder!, SelectedSdk!);
-                    _ = ProjectBuild.Prepare(session.ProjectFolder!, SelectedSdk!);
-                    Status.Show($"Added code to {session.ProjectName}; building it");
-                }
-                catch (EngineException e)
-                {
-                    Status.Show(e.Message, error: true);
-                    return;
-                }
-
-                leaving = Leaving.Reopen;
-                confirmed = true;
-            },
-            BuildAndReopen = () =>
-            {
-                if (!session.Editing) { Status.Show("Stop Play before rebuilding project code.", error: true); return; }
-                try { _ = ProjectBuild.Prepare(session.ProjectFolder!, SelectedSdk!); }
-                catch (EngineException error) { Status.Show(error.Message, error: true); return; }
-                leaving = Leaving.Reopen;
-                confirmed = true;
-            },
+            AddCode = () => BuildCode(addCode: true),
+            BuildAndReopen = () => BuildCode(),
+            ReloadsCodeInPlace = reloadInPlace,
+            CodeBuildPending = () => codeBuild.Pending,
+            HasBuildOutput = () => codeBuild.HasOutput,
+            ShowBuildOutput = codeBuild.Show,
             OtherProject = () =>
             {
                 if (project && session.Unsaved)
@@ -580,6 +613,9 @@ internal sealed class EditorWindow(EditorOptions options, string[] launchArgumen
             viewport.CloseColliderGestureBeforeCommands();
             authoring.Scenes.ProcessPending();
             if (session.Edits.IsBlocked) { FinishRecoveryFrame(now); continue; }
+            codeBuild.ApplyIfReady(session.Editing && leaving == Leaving.None && !Exporting() &&
+                session.Edits.GestureActive?.Invoke() != true, ApplyReload);
+            if (session.Edits.IsBlocked) { FinishRecoveryFrame(now); continue; }
             if (inspector.RebuildRequested)
             {
                 inspector.RebuildRequested = false;
@@ -633,14 +669,12 @@ internal sealed class EditorWindow(EditorOptions options, string[] launchArgumen
             if (inspector.TakeCreatedCodeComponent() is { } created)
             {
                 pendingCode = created;
-                leaving = Leaving.Reopen;
-                confirmed = true;
+                BuildCode();
             }
-            if (inspector.TriggerActionReopenRequested)
+            if (inspector.TriggerActionBuildRequested)
             {
-                inspector.TriggerActionReopenRequested = false;
-                leaving = Leaving.Reopen;
-                confirmed = true;
+                inspector.TriggerActionBuildRequested = false;
+                BuildCode();
             }
             viewport.Draw(frameDelta);
             assets.Draw();
@@ -648,12 +682,13 @@ internal sealed class EditorWindow(EditorOptions options, string[] launchArgumen
             CaptureFinished = viewport.Capture?.Finished ?? false;
 #endif
             files.Draw();
+            codeBuild.Draw(session.Editing);
             exportPanel.Draw();
             if (exportPanel.Failed) exitCode = 3;
 
             ClosePrompt();
 
-            // Code is built by a new editor, once this one has let go of the game's library.
+            // SDKs without project module reload rebuild in a new process.
             if (leaving == Leaving.Reopen && confirmed)
             {
                 try

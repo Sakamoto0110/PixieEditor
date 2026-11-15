@@ -56,7 +56,7 @@ internal sealed class BuildScreen(ProjectBuild.BuildPlan plan) : IDisposable
                 }
 
                 ImGui.Spacing();
-                DrawOutput();
+                DrawOutput(Build.Lines, ref LinesShown);
             }
 
             ImGui.EndChild();
@@ -70,7 +70,7 @@ internal sealed class BuildScreen(ProjectBuild.BuildPlan plan) : IDisposable
     }
 
     // CMake's output, following the end while new lines come.
-    private void DrawOutput()
+    internal static void DrawOutput(string[] lines, ref int linesShown)
     {
         if (!ImGui.BeginChild("##output", Vector2.Zero, ImGuiChildFlags.Borders, ImGuiWindowFlags.HorizontalScrollbar))
         {
@@ -78,7 +78,6 @@ internal sealed class BuildScreen(ProjectBuild.BuildPlan plan) : IDisposable
             return;
         }
 
-        var lines = Build.Lines;
         foreach (var line in lines)
         {
             var failed = line.Contains(": error", StringComparison.OrdinalIgnoreCase) ||
@@ -90,10 +89,10 @@ internal sealed class BuildScreen(ProjectBuild.BuildPlan plan) : IDisposable
                 ImGui.PopStyleColor();
         }
 
-        if (lines.Length != LinesShown)
+        if (lines.Length != linesShown)
         {
             ImGui.SetScrollHereY(1f);
-            LinesShown = lines.Length;
+            linesShown = lines.Length;
         }
 
         ImGui.EndChild();
