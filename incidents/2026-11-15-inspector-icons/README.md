@@ -38,3 +38,7 @@ The new test build passed with zero warnings/errors; the public locked publish p
 - Normal output: `src/bin/Release/net10.0`; all 50 delivered files matched the isolated stage. The prior output is retained under the evidence directory's `previous-main-bin`.
 
 The complete delivered application includes other contributors' preserved dirty-source changes. This scoped commit does not claim a clean-commit reproduction of that entire output or promotion into a new approved baseline. No cleanup, SDK export or push accompanied delivery.
+
+## Subsequent visible acceptance
+
+The [15 November public UI verification](../../docs/evidence/public-editor-ui-2026-11-15.md) subsequently exercised the delivered fixed DLL. Locks/chains remained recognizable across two actual module replacements in one process, including a builder and an atlas selector open during compilation. Normal close/reopen preserved scene and animation settings. This adds visible acceptance without changing the earlier focused test's historical scope; generic callbacks and post-publication recovery remain open.

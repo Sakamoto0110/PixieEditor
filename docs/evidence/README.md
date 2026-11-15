@@ -11,6 +11,7 @@ move does not rerun a scenario or close an outstanding acceptance item.
 | [Extraction origin](../extraction-origin.md) | Preserved import commit, native binding ownership and original GLFW transfer |
 | [Authoring decisions and compatibility chronology](authoring-decisions-2026-11-06.md) | Previously recorded UX/World decisions, client observations and ABI9–12/v1 introduction notes |
 | [Native release provenance](../../eng/native/win-x64/release-provenance.json) | Admitted DLLs, notice inputs and outstanding provenance evidence |
+| [Public Editor UI acceptance, 15 November 2026](public-editor-ui-2026-11-15.md) | Visible icon verification, sprite builder, two reloads, stale atlas selector and full process re-opening |
 
 ## Earlier records retained in PixieEngine
 
