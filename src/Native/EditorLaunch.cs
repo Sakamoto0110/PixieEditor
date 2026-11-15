@@ -8,23 +8,24 @@ internal static class EditorLaunch
     private static readonly HashSet<string> SelectionFlags = ["--sdk", "--sdk-id", "--sdk-build-id", "--sdk-manifest-sha256", "--sdk-profile", "--native-configuration"];
 
     internal static ProcessStartInfo WithGraphicsProvider(EngineSdk sdk, string[] original, int after,
-        string? project, string? projectAction)
+        string? project, string? projectAction, bool recoverProjectOpen = false)
     {
         var arguments = new List<string>();
         for (var i = 0; i < original.Length; i += 2)
         {
             var flag = original[i];
-            if (SelectionFlags.Contains(flag) || flag == "--after" ||
+            if (SelectionFlags.Contains(flag) || flag is "--after" or "--recover-project-open" ||
                 project != null && flag is ("--project" or "--project-action")) continue;
             arguments.Add(flag);
             arguments.Add(original[i + 1]);
         }
         if (project != null) arguments.AddRange(["--project", project]);
         if (projectAction != null) arguments.AddRange(["--project-action", projectAction]);
+        if (recoverProjectOpen) arguments.AddRange(["--recover-project-open", "on"]);
         return Create(sdk, arguments, after);
     }
 
-    internal static ProcessStartInfo Create(EngineSdk sdk, IEnumerable<string> arguments, int? after = null,
+    internal static ProcessStartInfo Create(EngineSdk? sdk, IEnumerable<string> arguments, int? after = null,
         string? processPath = null, string? assemblyPath = null)
     {
         var executable = processPath ?? Environment.ProcessPath ?? throw new EngineException("The Editor executable path is unavailable.");
@@ -39,9 +40,10 @@ internal static class EditorLaunch
             info.ArgumentList.Add(assembly);
         }
         foreach (var value in action) info.ArgumentList.Add(value);
-        foreach (var value in new[] { "--sdk", sdk.Root, "--sdk-id", sdk.Id, "--sdk-build-id", sdk.BuildId,
-            "--sdk-manifest-sha256", sdk.ManifestSha256, "--sdk-profile", sdk.Profile, "--native-configuration", sdk.Configuration })
-            info.ArgumentList.Add(value);
+        if (sdk != null)
+            foreach (var value in new[] { "--sdk", sdk.Root, "--sdk-id", sdk.Id, "--sdk-build-id", sdk.BuildId,
+                "--sdk-manifest-sha256", sdk.ManifestSha256, "--sdk-profile", sdk.Profile, "--native-configuration", sdk.Configuration })
+                info.ArgumentList.Add(value);
         if (after is { } process)
         {
             info.ArgumentList.Add("--after");

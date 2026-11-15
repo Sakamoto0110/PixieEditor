@@ -33,7 +33,7 @@ internal sealed class EngineSdk
     public ulong CapabilityBits { get; }
     internal ExportTool? Exporter { get; }
     internal ProjectSupport? Generation { get; }
-    public string Summary => $"PixieEngine {ProductVersion} · {Profile} · {Configuration}";
+    public string Summary => $"PixieEngine {ProductVersion} · {Profile} · {Configuration} · SDK {Id[..8]}";
 
     private EngineSdk(string root, string manifestHash, JsonElement manifest, JsonElement profile,
         string profileHash, string origin, ExportTool? exporter, ProjectSupport? generation, Payload? glfw)

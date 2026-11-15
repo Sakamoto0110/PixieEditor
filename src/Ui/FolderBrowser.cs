@@ -1,142 +1,41 @@
 using System.Numerics;
 using Hexa.NET.ImGui;
+using PixieEditor.Editing;
 
 namespace PixieEditor.Ui;
 
-// A folder picker drawn with ImGui, so it works on every editor host: the current folder as text that
-// can be typed over, Up, New folder, the drives on Windows, and the folders inside, where a click goes in.
-// Folders that hold a project are marked. Given a file extension, it also lists the files with it,
-// after the folders, and a click on one chooses it (ChosenFile).
-internal sealed class FolderBrowser
+// The current ImGui view for a navigation session. Layout and input bindings live here.
+internal sealed class FolderBrowserView(IFolderBrowser browser)
 {
     private static readonly Vector4 ProjectColor = new(0.55f, 0.8f, 1.0f, 1.0f);
     private static readonly Vector4 ErrorColor = new(1.0f, 0.45f, 0.4f, 1.0f);
     private static readonly Vector4 FileColor = new(0.75f, 0.95f, 0.7f, 1.0f);
 
-    private string Typed = "";
-    private (string Path, string Name, bool Project)[] Folders = [];
-    private (string Path, string Name)[] Files = [];
-    private readonly string? Extension;
-    private string? Error;
+    private string Typed = browser.Current;
     private bool CreatingFolder;
     private string NewFolderName = "";
     private bool FocusFolderName;
 
-    public FolderBrowser(string start, string? extension = null)
-    {
-        Extension = extension;
-        Current = "";
-        if (!Go(start))
-            Go(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile));
-    }
-
-    public string Current { get; private set; }
-
-    // The file clicked, or typed and confirmed with Enter, when the browser lists files.
-    public string? ChosenFile { get; private set; }
-
-    // Whether the current folder holds a project.
-    public bool CurrentIsProject => IsProject(Current);
-
-    public static bool IsProject(string folder)
-    {
-        try
-        {
-            return Directory.Exists(folder) && Directory.EnumerateFiles(folder, "*.pixie").Any();
-        }
-        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
-        {
-            return false;
-        }
-    }
-
-    public bool Go(string path)
-    {
-        try
-        {
-            var full = Path.GetFullPath(path);
-            if (File.Exists(full) && MatchesFile(full))
-            {
-                ChosenFile = full;
-                return true;
-            }
-
-            if (!Directory.Exists(full))
-            {
-                Error = $"There is no folder {full}.";
-                Typed = Current;
-                return false;
-            }
-
-            Current = full;
-            Typed = full;
-            Error = null;
-            Folders = Directory.GetDirectories(full)
-                .Where(d => !new DirectoryInfo(d).Attributes.HasFlag(FileAttributes.Hidden))
-                .Select(d => (d, Path.GetFileName(d), IsProject(d)))
-                .OrderBy(f => f.Item2, StringComparer.OrdinalIgnoreCase)
-                .ToArray();
-            Files = Extension == null
-                ? []
-                : Directory.GetFiles(full)
-                    .Where(MatchesFile)
-                    .Select(f => (f, Path.GetFileName(f)))
-                    .OrderBy(f => f.Item2, StringComparer.OrdinalIgnoreCase)
-                    .ToArray();
-            return true;
-        }
-        catch (Exception e) when (e is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException)
-        {
-            Error = e.Message;
-            Folders = [];
-            Files = [];
-            Typed = Current;
-            return false;
-        }
-    }
-
-    private bool MatchesFile(string path) => Extension == ".atlas.json"
-        ? path.EndsWith(".atlas.json", StringComparison.OrdinalIgnoreCase)
-        : Extension != null && Path.GetExtension(path).Equals(Extension, StringComparison.OrdinalIgnoreCase);
-
-    // Creates one child of the current location; an existing entry is never reused.
-    internal bool CreateFolder(string name)
-    {
-        name = name.Trim();
-        if (name.Length == 0 || name is "." or ".." || name.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0 ||
-            OperatingSystem.IsWindows() && name.EndsWith('.'))
-        {
-            Error = "Enter a valid folder name.";
-            return false;
-        }
-
-        try
-        {
-            var folder = Path.Combine(Current, name);
-            if (Path.Exists(folder))
-            {
-                Error = "A file or folder with that name already exists.";
-                return false;
-            }
-            Directory.CreateDirectory(folder);
-            return Go(folder);
-        }
-        catch (Exception e) when (e is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException)
-        {
-            Error = e.Message;
-            return false;
-        }
-    }
+    public IFolderBrowser Browser => browser;
 
     public void Draw(string id, float height)
     {
         ImGui.PushID(id);
+        var focused = ImGui.IsWindowFocused(ImGuiFocusedFlags.ChildWindows);
+        var io = ImGui.GetIO();
+        if (focused && !ImGui.IsAnyItemActive())
+        {
+            if (io.KeyAlt && ImGui.IsKeyPressed(ImGuiKey.LeftArrow)) Navigate(browser.Back);
+            if (io.KeyAlt && ImGui.IsKeyPressed(ImGuiKey.RightArrow)) Navigate(browser.Forward);
+            if (io.KeyAlt && ImGui.IsKeyPressed(ImGuiKey.UpArrow)) Navigate(browser.Up);
+            if (ImGui.IsKeyPressed(ImGuiKey.F5)) Navigate(browser.Refresh);
+        }
         if (ImGui.Button("New folder"))
         {
             CreatingFolder = true;
             NewFolderName = "";
             FocusFolderName = true;
-            Error = null;
+            browser.ClearError();
         }
         if (CreatingFolder)
         {
@@ -148,66 +47,65 @@ internal sealed class FolderBrowser
             ImGui.SetNextItemWidth(Math.Max(100, ImGui.GetContentRegionAvail().X - 160));
             var confirm = ImGui.InputText("##newFolderName", ref NewFolderName, 256, ImGuiInputTextFlags.EnterReturnsTrue);
             ImGui.SameLine();
-            if ((ImGui.Button("Create folder") || confirm) && CreateFolder(NewFolderName))
+            if ((ImGui.Button("Create folder") || confirm) && Navigate(() => browser.CreateFolder(NewFolderName)))
                 CreatingFolder = false;
             ImGui.SameLine();
             if (ImGui.Button("Cancel"))
             {
                 CreatingFolder = false;
-                Error = null;
+                browser.ClearError();
             }
         }
-        if (ImGui.Button("Up") && Directory.GetParent(Current) is { } parent)
-            Go(parent.FullName);
+        if (ImGui.Button("Up")) Navigate(browser.Up);
         ImGui.SameLine();
+        if (focused && io.KeyCtrl && ImGui.IsKeyPressed(ImGuiKey.L)) ImGui.SetKeyboardFocusHere();
         ImGui.SetNextItemWidth(-1);
-        if (ImGui.InputText("##path", ref Typed, 1024, ImGuiInputTextFlags.EnterReturnsTrue))
-            Go(Typed);
+        if (ImGui.InputText("##path", ref Typed, 4096, ImGuiInputTextFlags.EnterReturnsTrue | ImGuiInputTextFlags.AutoSelectAll))
+            Navigate(() => browser.Go(Typed));
         if (ImGui.IsItemHovered())
-            ImGui.SetTooltip(Extension == null ? "Type a folder and press Enter." : "Type a folder or a file and press Enter.");
+            ImGui.SetTooltip(browser.Extension == null ? "Type a folder and press Enter." : "Type a folder or a file and press Enter.");
 
         if (OperatingSystem.IsWindows())
         {
-            foreach (var drive in DriveInfo.GetDrives().Where(d => d.IsReady))
+            foreach (var place in browser.Places.Where(place => Path.GetPathRoot(place.Path) == place.Path))
             {
-                if (ImGui.SmallButton(drive.Name))
-                    Go(drive.RootDirectory.FullName);
+                if (ImGui.SmallButton(place.Label))
+                    Navigate(() => browser.Go(place.Path));
                 ImGui.SameLine();
             }
-
             ImGui.NewLine();
         }
 
         if (ImGui.BeginChild("##folders", new Vector2(0, height), ImGuiChildFlags.Borders))
         {
-            if (Folders.Length == 0 && Files.Length == 0)
-                ImGui.TextDisabled(Extension == null ? "No folders here." : $"No folders or {Extension} files here.");
-            foreach (var (path, name, project) in Folders)
+            if (browser.Entries.Count == 0)
+                ImGui.TextDisabled(browser.Extension == null ? "No folders here." : $"No folders or {browser.Extension} files here.");
+            foreach (var entry in browser.Entries)
             {
-                if (project)
-                    ImGui.PushStyleColor(ImGuiCol.Text, ProjectColor);
-                var clicked = ImGui.Selectable(project ? $"{name}    (project)##{path}" : $"{name}##{path}");
-                if (project)
-                    ImGui.PopStyleColor();
+                var colored = entry.Kind != BrowserEntryKind.Folder;
+                if (colored)
+                    ImGui.PushStyleColor(ImGuiCol.Text, entry.Kind == BrowserEntryKind.Project ? ProjectColor : FileColor);
+                var name = entry.Kind == BrowserEntryKind.Project ? $"{entry.Name}    (project)" : entry.Name;
+                var clicked = ImGui.Selectable($"{name}##{entry.Path}");
+                if (colored) ImGui.PopStyleColor();
                 if (clicked)
                 {
-                    Go(path);
+                    Navigate(() => browser.Go(entry.Path));
                     break;
                 }
-            }
-
-            foreach (var (path, name) in Files)
-            {
-                ImGui.PushStyleColor(ImGuiCol.Text, FileColor);
-                if (ImGui.Selectable($"{name}##{path}"))
-                    ChosenFile = path;
-                ImGui.PopStyleColor();
             }
         }
 
         ImGui.EndChild();
-        if (Error != null)
-            ImGui.TextColored(ErrorColor, Error);
+        if (browser.Error is { } error)
+            ImGui.TextColored(ErrorColor, error);
         ImGui.PopID();
+    }
+
+    private bool Navigate(Func<bool> action)
+    {
+        if (!action()) return false;
+        Typed = browser.Current;
+        return true;
     }
 }

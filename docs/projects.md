@@ -13,14 +13,21 @@ as it is. The editor creates no version-control files.
 
 - **Start screen.** Without `--game` or `--project`, the editor opens on New project, Open project,
   and the recent projects (a click opens one; a missing one is marked, with Forget).
+  For an existing project, a machine-local SDK mapping in `PixieEditor/project-sdks.json`
+  takes precedence over the default SDK. The file maps absolute project folders to objects
+  with `Root`, `ManifestSha256`, `Profile`, and `Configuration`. The editor verifies the
+  SDK against the pinned manifest and the project's SDK requirements before opening it.
+  A successful open remembers the project's validated selection without replacing the global
+  default. A missing or incompatible binding can be resolved in the SDK picker for that project.
   - **New project** takes a location, chosen in a folder picker drawn in ImGui (Up, the drives,
     the folders inside, and a path to type and confirm with Enter), and a name; it makes the folder
     `<location>/<name>`, which must not exist or be empty, and says why before Create can be
     pressed. The project takes the folder's name, and its scene starts with one shape.
     The picker also offers **New folder**: enter a name and choose **Create folder** (or press
     Enter) to create and enter a child folder at the current location; **Cancel** leaves it alone.
-    Existing names are refused, and filesystem errors are shown in the picker. The same control
-    is available in the Open project and asset pickers.
+    Existing names are refused, and filesystem errors are shown in the picker. The same
+    [disk browser](folder-browser.md) serves the Open project, SDK, and asset pickers.
+    Use Ctrl+L for the address, Alt+Left/Right for history, Alt+Up for the parent, and F5 to refresh.
   - **Open project** takes a folder that holds a `.pixie` file; project folders are marked in the
     picker, and Open waits until the current folder is one.
 - A project runs on the shared engine's generic scene project, so it opens without a

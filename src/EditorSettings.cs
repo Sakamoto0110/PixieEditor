@@ -22,6 +22,72 @@ internal sealed class EditorSettings
     private static string FilePath => Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "PixieEditor", "settings.json");
 
+    internal sealed record ProjectSdk(string Root, string ManifestSha256, string Profile, string Configuration)
+    {
+        internal EngineSdk Load(string folder)
+        {
+            if (!Path.IsPathFullyQualified(Root) || string.IsNullOrWhiteSpace(ManifestSha256))
+                throw new EngineException("The project's saved SDK needs an absolute path and a catalog hash.");
+            var sdk = EngineSdk.Load(Root, Profile, Configuration, "project-settings", expectedManifestSha256: ManifestSha256);
+            if (!SdkRequirements.Validate(folder, sdk))
+                throw new EngineException("The project no longer records requirements for its saved SDK.");
+            return sdk;
+        }
+    }
+
+    private string ProjectSdksPath => Path.Combine(Path.GetDirectoryName(StoragePath ?? FilePath)!, "project-sdks.json");
+
+    private static string ProjectKey(string folder) => Path.TrimEndingDirectorySeparator(Path.GetFullPath(folder));
+
+    private Dictionary<string, ProjectSdk> ReadProjectSdks()
+    {
+        var path = ProjectSdksPath;
+        if (!File.Exists(path)) return [];
+        try
+        {
+            return JsonSerializer.Deserialize<Dictionary<string, ProjectSdk>>(File.ReadAllText(path))
+                ?? throw new JsonException("Expected a map of project folders to SDKs.");
+        }
+        catch (Exception error) when (error is IOException or UnauthorizedAccessException or JsonException)
+        {
+            throw new EngineException($"The project SDK settings could not be read: {error.Message}");
+        }
+    }
+
+    internal ProjectSdk? FindProjectSdk(string folder)
+    {
+        var full = ProjectKey(folder);
+        return ReadProjectSdks().FirstOrDefault(binding => string.Equals(binding.Key, full, PathComparison)).Value;
+    }
+
+    internal void RememberProjectSdk(string folder, EngineSdk sdk)
+    {
+        try
+        {
+            if (!SdkRequirements.Validate(folder, sdk)) return;
+            var path = ProjectSdksPath;
+            Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+            using var lease = new FileStream(path + ".lock", FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None);
+            var bindings = ReadProjectSdks();
+            var full = ProjectKey(folder);
+            var existing = bindings.Keys.FirstOrDefault(key => string.Equals(key, full, PathComparison));
+            var binding = new ProjectSdk(sdk.Root, sdk.ManifestSha256, sdk.Profile, sdk.Configuration);
+            if (existing != null && bindings[existing] == binding) return;
+            bindings[existing ?? full] = binding;
+            var temporary = path + "." + Guid.NewGuid().ToString("N") + ".tmp";
+            try
+            {
+                File.WriteAllText(temporary, JsonSerializer.Serialize(bindings, new JsonSerializerOptions { WriteIndented = true }));
+                File.Move(temporary, path, overwrite: true);
+            }
+            finally { File.Delete(temporary); }
+        }
+        catch (Exception error) when (error is EngineException or IOException or UnauthorizedAccessException)
+        {
+            Console.Error.WriteLine($"[warning] The project's SDK could not be remembered: {error.Message}");
+        }
+    }
+
     internal static string LayoutPath => Path.Combine(Path.GetDirectoryName(FilePath)!, "imgui.ini");
 
     internal static bool HasProjectLayout(string path)

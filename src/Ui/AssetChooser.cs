@@ -14,7 +14,7 @@ internal sealed class AssetChooser(string? projectFolder)
     private const string FileTitle = "Choose a file";
     private const string FolderTitle = "Choose a folder to import";
 
-    private FolderBrowser? Browser;
+    private FolderBrowserView? Browser;
     private Action<string>? Chosen;
     private bool OpenRequested;
     private string? Kind = "png";
@@ -29,7 +29,7 @@ internal sealed class AssetChooser(string? projectFolder)
         Chosen = chosen;
         var start = LastFolders.GetValueOrDefault(kind) ?? ProjectAssets.StartFolder(projectFolder, kind) ??
                     Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
-        Browser = new FolderBrowser(start, "." + kind);
+        Browser = new(new FolderBrowser(start, "." + kind, Places(start)));
         OpenRequested = true;
     }
 
@@ -38,7 +38,7 @@ internal sealed class AssetChooser(string? projectFolder)
         Kind = null;
         Chosen = chosen;
         var start = LastImportFolder ?? projectFolder ?? Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
-        Browser = new FolderBrowser(start);
+        Browser = new(new FolderBrowser(start, places: Places(start)));
         OpenRequested = true;
     }
 
@@ -68,7 +68,7 @@ internal sealed class AssetChooser(string? projectFolder)
         }
         Browser!.Draw("files", Math.Max(120f, ImGui.GetContentRegionAvail().Y - 60f));
         string? chosen = null;
-        if (Kind is { } fileKind && Browser.ChosenFile is { } file)
+        if (Kind is { } fileKind && Browser.Browser.ChosenFile is { } file)
         {
             if (Path.GetDirectoryName(file) is { } folder)
                 LastFolders[fileKind] = folder;
@@ -76,9 +76,9 @@ internal sealed class AssetChooser(string? projectFolder)
         }
         if (Kind == null)
         {
-            ImGui.BeginDisabled(Browser.Current.Length == 0);
+            ImGui.BeginDisabled(Browser.Browser.Current.Length == 0);
             if (ImGui.Button("Import this folder"))
-                chosen = LastImportFolder = Browser.Current;
+                chosen = LastImportFolder = Browser.Browser.Current;
             ImGui.EndDisabled();
             ImGui.SameLine();
         }
@@ -93,5 +93,11 @@ internal sealed class AssetChooser(string? projectFolder)
         }
 
         ImGui.EndPopup();
+    }
+
+    private IEnumerable<BrowserPlace> Places(string start)
+    {
+        if (projectFolder != null) yield return new("Project", projectFolder);
+        yield return new("Last location", start);
     }
 }

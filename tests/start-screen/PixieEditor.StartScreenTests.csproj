@@ -9,7 +9,7 @@
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="../../src/PixieEditor.csproj" />
-    <Compile Include="../../src/Ui/FolderBrowser.cs" Link="FolderBrowser.cs" />
+    <Compile Include="../../src/Editing/FolderBrowser.cs" Link="FolderBrowser.cs" />
   </ItemGroup>
   <Target Name="RefusePublish" BeforeTargets="PrepareForPublish;Publish">
     <Error Text="Start screen tests cannot be published." />

@@ -241,6 +241,7 @@ internal static class SdkSelectionTests
         Refuses(() => SdkRequirements.Validate(project, sdkB), "project-requirement-rejects-other-sdk");
         Refuses(() => SdkRequirements.Adopt(project, sdkB), "existing-requirement-never-overwritten");
         Check(EngineSdk.HashFile(requirement) == requirementHash, "requirement-refusal-preserves-preimage");
+        var expectedRequirement = File.ReadAllText(requirement);
         var data = JsonNode.Parse(File.ReadAllText(requirement))!.AsObject(); data["installationPath"] = a.Root;
         File.WriteAllText(requirement, data.ToJsonString());
         Refuses(() => SdkRequirements.Validate(project, sdk), "machine-path-in-project-requirement-refused");
@@ -260,6 +261,19 @@ internal static class SdkSelectionTests
         var recalled = restored.RecallSdk();
         Check(restored.SdkManifestSha256 == sdk.ManifestSha256 && recalled is { Origin: "settings" } &&
             recalled.Id == sdk.Id && recalled.BuildId == sdk.BuildId, "confirmed-sdk-is-recalled-with-exact-identity");
+        File.WriteAllText(requirement, expectedRequirement);
+        restored.ConfirmSdk(sdkB);
+        restored.RememberProjectSdk(project, sdk);
+        var reopenedSettings = EditorSettings.Load(settingsPath);
+        var projectChoice = new ProjectChoice(project, false);
+        var reopen = new StartScreen(reopenedSettings, reopenedSettings.RecallSdk());
+        Check(reopen.ProjectSdk(projectChoice)?.Load(project).Id == sdk.Id &&
+            reopenedSettings.RecallSdk()?.Id == sdkB.Id, "project-binding-restores-the-pinned-sdk-with-a-different-default");
+        reopen.ResolveProjectSdk(projectChoice, "Choose the project SDK.");
+        Refuses(() => reopen.ConfirmSdk(b.Root), "project-picker-rejects-the-wrong-pin-before-confirmation");
+        var resolved = reopen.ConfirmSdk(a.Root);
+        Check(resolved is { UseSelectedSdk: true } && reopen.ProjectSdk(resolved) == null &&
+            EditorSettings.Load(settingsPath).RecallSdk()?.Id == sdkB.Id, "project-picker-uses-the-confirmed-sdk-and-preserves-the-default");
         restored.SdkManifestSha256 = new string('0', 64);
         Refuses(() => restored.RecallSdk(), "recalled-sdk-refuses-replaced-catalog");
         restored.SdkRoot = Path.Combine(work, "missing-saved-sdk");

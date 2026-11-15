@@ -21,7 +21,9 @@ internal static class SdkRequirements
                 throw new EngineException("Portable SDK requirements cannot contain installation paths or unknown settings.");
             foreach (var field in new[] { "sdkId", "profile", "platform", "architecture", "compilerVersion" })
                 if (!JsonElement.DeepEquals(requirement.GetProperty(field), sdk.Identity.GetProperty(field)))
-                    throw new EngineException($"This project requires a different Engine SDK ({field}). Choose a matching SDK; adoption must be explicit.");
+                    throw new EngineException($"This project requires a different Engine SDK ({field}). " +
+                        $"Required: {requirement.GetProperty(field).GetString()}; selected: {sdk.Identity.GetProperty(field).GetString()} " +
+                        $"({sdk.Summary}). Choose a matching SDK for this project.");
             var requestedCpu = new HashSet<string>(StringComparer.Ordinal);
             foreach (var entry in requirement.GetProperty("cpuFeatures").EnumerateArray())
                 if (entry.GetString() is not { } feature || !requestedCpu.Add(feature))

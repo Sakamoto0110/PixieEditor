@@ -1,11 +1,12 @@
 using System.Numerics;
 using Hexa.NET.ImGui;
+using PixieEditor.Editing;
 using PixieEditor.Native;
 
 namespace PixieEditor.Ui;
 
 // What the start screen asked for: a new project in a folder, or an existing one.
-internal sealed record ProjectChoice(string Folder, bool Create, bool AdoptSdk = false);
+internal sealed record ProjectChoice(string Folder, bool Create, bool AdoptSdk = false, bool UseSelectedSdk = false);
 
 // The editor's first screen, when no game or project was given: New project, Open project, and the
 // recent projects. New project takes a location and a name, and makes the folder <location>/<name>;
@@ -26,11 +27,11 @@ internal sealed class StartScreen(EditorSettings settings, EngineSdk? sdk = null
     private Page Showing = Page.Home;
     // The column's height on the last frame, to center it in the window on this one.
     private float ContentHeight = 300f;
-    private FolderBrowser? Browser;
+    private FolderBrowserView? Browser;
     private string NewName = "";
     internal EngineSdk? SelectedSdk { get; private set; } = sdk;
     internal ProjectChoice? PendingChoice { get; private set; }
-    private FolderBrowser? SdkBrowser;
+    private FolderBrowserView? SdkBrowser;
 #if PIXIE_DEVELOPMENT
     private string SelectedProfile = profile ?? settings.SdkProfile;
 #else
@@ -39,6 +40,10 @@ internal sealed class StartScreen(EditorSettings settings, EngineSdk? sdk = null
     private string SelectedConfiguration = configuration ?? settings.NativeConfiguration;
     private bool AdoptSdk;
     private readonly bool OverrideLocked = sdk?.Origin is "launch" or "environment";
+
+    internal EditorSettings.ProjectSdk? ProjectSdk(ProjectChoice choice) =>
+        OverrideLocked || choice.Create || choice.AdoptSdk || choice.UseSelectedSdk || profile != null || configuration != null
+            ? null : settings.FindProjectSdk(choice.Folder);
 
     internal void RequestProject(ProjectChoice choice)
     {
@@ -49,19 +54,34 @@ internal sealed class StartScreen(EditorSettings settings, EngineSdk? sdk = null
     private void ChooseSdk()
     {
         Showing = Page.Sdk;
-        SdkBrowser = new FolderBrowser(settings.SdkRoot ?? Environment.GetFolderPath(Environment.SpecialFolder.UserProfile));
+        var start = settings.SdkRoot ?? Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+        var sdkDirectory = settings.SdkRoot is { } root ? Path.GetDirectoryName(root) : null;
+        SdkBrowser = new(new FolderBrowser(start, places: sdkDirectory == null ? null : [new("SDK installations", sdkDirectory)]));
         Error = null;
     }
     internal void RequestSdk() => ChooseSdk();
+
+    internal void ResolveProjectSdk(ProjectChoice choice, string error)
+    {
+        PendingChoice = choice;
+        ChooseSdk();
+        Error = error;
+    }
 
     internal ProjectChoice? ConfirmSdk(string root)
     {
         var selected = EngineSdk.Load(root, SelectedProfile, SelectedConfiguration, expectedId: expectedId,
             expectedBuildId: expectedBuildId, expectedManifestSha256: expectedManifestSha256);
-        settings.ConfirmSdk(selected);
+        var choice = PendingChoice;
+        if (choice is { Create: false })
+        {
+            _ = SdkRequirements.Validate(choice.Folder, selected);
+            choice = choice with { UseSelectedSdk = true };
+        }
+        else settings.ConfirmSdk(selected);
         SelectedSdk = selected;
         Showing = Page.Home;
-        var choice = PendingChoice; PendingChoice = null;
+        PendingChoice = null;
         return choice;
     }
 
@@ -105,12 +125,13 @@ internal sealed class StartScreen(EditorSettings settings, EngineSdk? sdk = null
                     Page.Open => DrawOpen(),
                     _ => DrawHome(),
                 };
-                if (choice != null && SelectedSdk == null) { RequestProject(choice); choice = null; }
-                else if (choice != null && AdoptSdk) choice = choice with { AdoptSdk = true };
+                if (choice != null && SelectedSdk != null && AdoptSdk) choice = choice with { AdoptSdk = true };
                 if (Error != null)
                 {
                     ImGui.Spacing();
-                    ImGui.TextColored(ErrorColor, Error);
+                    ImGui.PushStyleColor(ImGuiCol.Text, ErrorColor);
+                    ImGui.TextWrapped(Error);
+                    ImGui.PopStyleColor();
                 }
             }
 
@@ -143,7 +164,7 @@ internal sealed class StartScreen(EditorSettings settings, EngineSdk? sdk = null
         ProjectChoice? choice = null;
         if (ImGui.Button("Use SDK"))
         {
-            try { choice = ConfirmSdk(SdkBrowser.Current); }
+            try { choice = ConfirmSdk(SdkBrowser.Browser.Current); }
             catch (EngineException error) { Error = error.Message; }
         }
         ImGui.SameLine();
@@ -180,7 +201,7 @@ internal sealed class StartScreen(EditorSettings settings, EngineSdk? sdk = null
         if (ImGui.Button("New project", new Vector2(ButtonWidth, 40)))
         {
             Showing = Page.New;
-            Browser = new FolderBrowser(Location);
+            Browser = ProjectBrowser();
             NewName = "";
             Error = null;
         }
@@ -192,7 +213,7 @@ internal sealed class StartScreen(EditorSettings settings, EngineSdk? sdk = null
         if (ImGui.Button("Open project", new Vector2(ButtonWidth, 40)))
         {
             Showing = Page.Open;
-            Browser = new FolderBrowser(Location);
+            Browser = ProjectBrowser();
             Error = null;
         }
 
@@ -243,8 +264,10 @@ internal sealed class StartScreen(EditorSettings settings, EngineSdk? sdk = null
         var enter = ImGui.IsItemDeactivated() && (ImGui.IsKeyPressed(ImGuiKey.Enter) || ImGui.IsKeyPressed(ImGuiKey.KeypadEnter));
 
         var name = NewName.Trim();
-        var folder = name.Length > 0 ? Path.Combine(Browser.Current, name) : null;
-        var problem = name.Length == 0 ? "Give the project a name; its folder takes the same name."
+        var current = Browser.Browser.Current;
+        var folder = name.Length > 0 && current.Length > 0 ? Path.Combine(current, name) : null;
+        var problem = current.Length == 0 ? "Choose a parent folder first."
+            : name.Length == 0 ? "Give the project a name; its folder takes the same name."
             : name.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0 || name is "." or ".." ? "A folder cannot have that name."
             : Directory.Exists(folder) && Directory.EnumerateFileSystemEntries(folder!).Any() ? "That folder exists and is not empty."
             : null;
@@ -271,16 +294,20 @@ internal sealed class StartScreen(EditorSettings settings, EngineSdk? sdk = null
 
         ImGui.Spacing();
         ProjectChoice? choice = null;
-        var isProject = Browser.CurrentIsProject;
+        var isProject = Browser.Browser.CurrentIsProject;
         ImGui.BeginDisabled(!isProject);
         if (ImGui.Button("Open", new Vector2(120, 0)))
-            choice = new ProjectChoice(Browser.Current, Create: false);
+            choice = new ProjectChoice(Browser.Browser.Current, Create: false);
         ImGui.EndDisabled();
         ImGui.SameLine();
         if (ImGui.Button("Back", new Vector2(120, 0)))
             Showing = Page.Home;
         ImGui.SameLine();
-        ImGui.TextColored(DimColor, isProject ? Path.GetFileName(Browser.Current) : "This folder is not a project.");
+        ImGui.TextColored(DimColor, isProject ? Path.GetFileName(Browser.Browser.Current) : "This folder is not a project.");
         return choice;
     }
+
+    private FolderBrowserView ProjectBrowser() => new(new FolderBrowser(Location,
+        places: settings.RecentProjects.Select(folder => new BrowserPlace(Path.GetFileName(folder), folder))
+            .Prepend(new("Recent project location", Location))));
 }

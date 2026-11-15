@@ -12,6 +12,7 @@ internal sealed record EditorOptions
     public string? Game { get; init; }
     public string? Project { get; init; }
     internal string? ProjectAction { get; init; }
+    internal bool RecoverProjectOpen { get; init; }
     public string? LegacyLayout { get; init; }
     public string? ResumeCode { get; init; }
     public string? SdkRoot { get; init; }
@@ -157,6 +158,9 @@ internal static class Program
                 case "--project-action" when value is "create" or "adopt":
                     options = options with { ProjectAction = value };
                     break;
+                case "--recover-project-open" when value == "on":
+                    options = options with { RecoverProjectOpen = true };
+                    break;
                 case "--seed" when ulong.TryParse(value, CultureInfo.InvariantCulture, out var seed):
                     options = options with { Seed = seed };
                     break;
@@ -230,6 +234,8 @@ internal static class Program
 
         if (options.ResumeCode != null && options.Project == null) return false;
         if (options.ProjectAction != null && (options.Project == null || options.After == null || options.SdkRoot == null ||
+            options.SdkId == null || options.SdkBuildId == null || options.SdkManifestSha256 == null)) return false;
+        if (options.RecoverProjectOpen && (options.Project == null || options.After == null || options.SdkRoot == null ||
             options.SdkId == null || options.SdkBuildId == null || options.SdkManifestSha256 == null)) return false;
 #if PIXIE_DEVELOPMENT
         if (options.QuitAfterSteps.HasValue && options.Game == null && options.Project == null)

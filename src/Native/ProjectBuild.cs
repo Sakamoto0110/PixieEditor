@@ -108,6 +108,10 @@ internal sealed class ProjectBuild : IDisposable
         }
         var cmake = File.ReadAllText(ProjectCode.CheckedPath(folder, "CMakeLists.txt")).Replace("\r\n", "\n");
         var template = File.ReadAllText(support.CMakeTemplate).Replace("\r\n", "\n").Replace("@PIXIE_ID@", id);
+        // Allow literal project-relative export assets in the pixie_game argument list.
+        var assets = Regex.Match(cmake, $@"(?<=\npixie_game\({id}\n)    ASSETS(?: assets/(?:[A-Za-z0-9_-][A-Za-z0-9_.-]*/)*[A-Za-z0-9_-][A-Za-z0-9_.-]*)+(?=\n)");
+        if (assets.Success)
+            cmake = cmake.Remove(assets.Index, assets.Length).Insert(assets.Index, "    ");
         if (cmake != template.Replace("@PIXIE_GENERATED_CANDIDATE_OPTION@", "") &&
             cmake != template.Replace("@PIXIE_GENERATED_CANDIDATE_OPTION@", "CANDIDATE_AUTHORING"))
             throw new EngineException("The project's CMake does not match its installed sdk-v1 template. Its custom wiring was preserved.");

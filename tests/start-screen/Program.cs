@@ -1,7 +1,7 @@
 using System.Runtime.InteropServices;
 using Hexa.NET.GLFW;
 using PixieEditor.Native;
-using PixieEditor.Ui;
+using PixieEditor.Editing;
 
 static class Program
 {
@@ -32,6 +32,15 @@ static class Program
             Check(!browser.CreateFolder("Project locations"), "refuse an existing folder");
             File.WriteAllText(Path.Combine(root, "keep.txt"), "preserve");
             Check(!browser.CreateFolder("keep.txt") && File.ReadAllText(Path.Combine(root, "keep.txt")) == "preserve", "preserve an existing file");
+
+            IFolderBrowser files = new FolderBrowser(root, ".txt", [new("Test location", root)]);
+            Check(files.Places.Any(place => place.Path == root), "expose caller-provided shortcuts");
+            Check(files.Go("Project locations") && files.Back() && files.CanGoForward, "browse relative paths and navigate back");
+            Check(!files.Go("missing") && files.Current == root && files.Error != null && files.CanGoForward,
+                "preserve location and history after a failed navigation");
+            Check(files.Forward() && files.Up() && files.Go("keep.txt") && files.ChosenFile == Path.Combine(root, "keep.txt"),
+                "navigate forward and up, then choose a file by relative path");
+            Check(files.Refresh() && files.ChosenFile == null, "refresh without repeating the previous file selection");
 
             var project = Path.Combine(root, "New game");
             EngineSession.CreateProject(project);

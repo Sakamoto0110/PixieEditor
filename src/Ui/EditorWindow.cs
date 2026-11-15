@@ -136,7 +136,9 @@ internal sealed class EditorWindow(EditorOptions options, string[] launchArgumen
         {
             try
             {
-                if (Settings.RecallSdk() is { } saved) SelectSdk(saved);
+                var projectSdk = options.ProjectAction == null && options.Project is { } folder
+                    ? Settings.FindProjectSdk(folder)?.Load(folder) : null;
+                if ((projectSdk ?? Settings.RecallSdk()) is { } saved) SelectSdk(saved);
             }
             catch (EngineException error)
             {
@@ -152,6 +154,15 @@ internal sealed class EditorWindow(EditorOptions options, string[] launchArgumen
         if (options.Project is { } folder)
         {
             var choice = new ProjectChoice(folder, options.ProjectAction == "create", options.ProjectAction == "adopt");
+            if (options.RecoverProjectOpen && SelectedSdk != null)
+            {
+                try { return OpenChoice(window, choice); }
+                catch (Exception error) when (IsProjectOpenError(error))
+                {
+                    Console.Error.WriteLine($"[error] {error.Message}");
+                    return ChooseProject(window, savedSdkError: error.Message);
+                }
+            }
             return SelectedSdk != null ? OpenChoice(window, choice) : ChooseProject(window, choice, savedSdkError);
         }
 
@@ -212,13 +223,29 @@ internal sealed class EditorWindow(EditorOptions options, string[] launchArgumen
             if (choice == null)
                 continue;
 
+            EngineSdk? sdk;
             try
             {
-                var sdk = screen.SelectedSdk ?? throw new EngineException("Choose an Engine SDK first.");
-                SelectSdk(sdk);
-                return RestartForGlfw(sdk, choice) ? null : OpenChoice(window, choice);
+                sdk = screen.ProjectSdk(choice)?.Load(choice.Folder) ?? screen.SelectedSdk;
+                if (sdk == null)
+                {
+                    screen.RequestProject(choice);
+                    continue;
+                }
+                if (!choice.Create) _ = SdkRequirements.Validate(choice.Folder, sdk);
             }
-            catch (Exception e) when (e is EngineException or FileNotFoundException or DllNotFoundException or System.ComponentModel.Win32Exception)
+            catch (EngineException e)
+            {
+                if (screen.SelectedSdk?.Origin is "launch" or "environment") screen.Error = e.Message;
+                else screen.ResolveProjectSdk(choice, e.Message);
+                continue;
+            }
+            try
+            {
+                SelectSdk(sdk);
+                return RestartForGlfw(sdk, choice, recoverProjectOpen: true) ? null : OpenChoice(window, choice);
+            }
+            catch (Exception e) when (IsProjectOpenError(e))
             {
                 screen.Error = e.Message;
             }
@@ -227,11 +254,15 @@ internal sealed class EditorWindow(EditorOptions options, string[] launchArgumen
         return null;
     }
 
-    private bool RestartForGlfw(EngineSdk sdk, ProjectChoice? choice = null)
+    private static bool IsProjectOpenError(Exception error) =>
+        error is EngineException or IOException or UnauthorizedAccessException or DllNotFoundException or
+            EntryPointNotFoundException or BadImageFormatException or System.ComponentModel.Win32Exception;
+
+    private bool RestartForGlfw(EngineSdk sdk, ProjectChoice? choice = null, bool recoverProjectOpen = false)
     {
         if (GlfwProvider == null || GlfwProvider.Matches(sdk)) return false;
         var action = choice is { Create: true } ? "create" : choice is { AdoptSdk: true } ? "adopt" : null;
-        Process.Start(EditorLaunch.WithGraphicsProvider(sdk, launchArguments, Environment.ProcessId, choice?.Folder, action));
+        Process.Start(EditorLaunch.WithGraphicsProvider(sdk, launchArguments, Environment.ProcessId, choice?.Folder, action, recoverProjectOpen));
         return true;
     }
 
@@ -296,7 +327,10 @@ internal sealed class EditorWindow(EditorOptions options, string[] launchArgumen
             GameLibrary.Use(library);
         var session = EngineSession.OpenProject(ViewWidth, ViewHeight, folder);
         if (options.Recent)
+        {
+            Settings.RememberProjectSdk(folder, sdk);
             Settings.Remember(folder);
+        }
         Console.Error.WriteLine($"[info] Opened {folder} with {Path.GetFileName(library)}");
         return session;
     }
@@ -543,7 +577,7 @@ internal sealed class EditorWindow(EditorOptions options, string[] launchArgumen
                 }
                 else
                 {
-                    OpenStartScreen();
+                    OpenStartScreen(session.ProjectFolder);
                     confirmed = true;
                     GLFW.SetWindowShouldClose(window, GLFW.GLFW_TRUE);
                 }
@@ -568,7 +602,7 @@ internal sealed class EditorWindow(EditorOptions options, string[] launchArgumen
             if (DrawUnsavedPrompt(session) is not { } leave) return;
             if (leave)
             {
-                if (leaving == Leaving.OtherProject) OpenStartScreen();
+                if (leaving == Leaving.OtherProject) OpenStartScreen(session.ProjectFolder);
                 confirmed = true;
                 GLFW.SetWindowShouldClose(window, GLFW.GLFW_TRUE);
             }
@@ -787,10 +821,17 @@ internal sealed class EditorWindow(EditorOptions options, string[] launchArgumen
     }
 
     // A new editor at the start screen; this one closes.
-    private void OpenStartScreen() => Relaunch([]);
+    private void OpenStartScreen(string? folder)
+    {
+        var sdk = SelectedSdk;
+        var useDefault = sdk?.Origin == "project-settings" || sdk != null &&
+            (sdk.ManifestSha256 == Settings.SdkManifestSha256 ||
+             folder != null && Settings.FindProjectSdk(folder)?.ManifestSha256 == sdk.ManifestSha256);
+        Relaunch([], useDefault);
+    }
 
     // A new editor with these options, which waits for this one to exit; this one closes.
-    private void Relaunch(string[] arguments)
+    private void Relaunch(string[] arguments, bool useDefaultSdk = false)
     {
         if (!options.Recent)
             arguments = [.. arguments, "--recent", "off"];
@@ -799,7 +840,7 @@ internal sealed class EditorWindow(EditorOptions options, string[] launchArgumen
             arguments = [.. arguments, "--layout", layout];
 #endif
         var sdk = SelectedSdk ?? throw new EngineException("No selected SDK is available for this restart.");
-        Process.Start(EditorLaunch.Create(sdk, arguments, Environment.ProcessId));
+        Process.Start(EditorLaunch.Create(useDefaultSdk ? null : sdk, arguments, Environment.ProcessId));
     }
 
     // Asks what to do with unsaved changes; true to go on leaving, false to stay, null while open.
