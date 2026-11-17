@@ -3,9 +3,9 @@
 **Closed:** 2026-11-17
 **Work IDs:** EDITOR-PROPOSAL-001 → EDITOR-RM-001; EDITOR-TODO-001, EDITOR-TODO-002, EDITOR-TODO-003, EDITOR-TODO-004
 **Child report:** EDITOR-RM-001-REPORT-1 (all four TODO items completed)
-**Last planning commit:** `b35b6584cee4b4bdbac8dfcf40e2fc9f27a8e3e7` (proposal, roadmap item and TODO group)
-**Implementation commit:** `959f5624c82e2cf1a4870735d90fc62a5e54cb6f`
-**Branch:** `claude/start-screen-folder-browser` from `a2f4635` (not pushed)
+**Last planning commit:** `5c62cb5b11cb6e00c73fe4475588030fe9da363a` (proposal, roadmap item and TODO group)
+**Implementation commit:** `637d74b90b287944a867808c0dbbfafc63881bec`
+**Branch:** `claude/start-screen-folder-browser` rebased onto `origin/main` `5693a86`
 **Authority:** direct owner instruction in chat on 2026-11-17, with a pre-flight that authorized proposal, promotion, implementation, a simulated pause, commit and closure
 
 ## Original roadmap block (as promoted)
