@@ -50,6 +50,7 @@ reference into this repository would create a competing owner.
 |---|---|
 | [Roadmap](../ROADMAP.md) | Editor direction, local outcome admission and the boundary of shared contributions |
 | [Accepted work](../TODO.md) | Explicit Editor-local execution and gates; no new native product scope is implied |
+| [History](history/README.md) | Closure records of completed Editor roadmap items |
 | [Proposals](proposals/start-screen-folder-browser.md) | Owner requests before promotion; after promotion the roadmap owns scope and acceptance |
 | [Documentation policy](governance/documentation-policy.md) | ROADMAP/TODO/optional TASKLIST model, authority and closure rules |
 | [Evidence and history](evidence/README.md) | Recorded decisions, qualification limits and locations of earlier Engine-owned records |

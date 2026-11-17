@@ -7,8 +7,9 @@
 
 This document records the request and the reasoning behind the accepted outcome.
 After promotion the [roadmap item](../../ROADMAP.md#editor-rm-001--friendly-folder-and-file-browser)
-owns scope and acceptance, and [TODO](../../TODO.md#start-screen-folder-browser-editor-rm-001)
-owns the work. This proposal is not updated as work progresses.
+owns scope and acceptance, and TODO owned the work until closure; the completed group is
+preserved in the [closure record](../history/editor-rm-001-folder-browser-2026-11-17.md).
+This proposal is not otherwise updated as work progresses.
 
 ## Problem
 
