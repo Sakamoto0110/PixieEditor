@@ -22,7 +22,8 @@
 
 ## Current local scope
 
-No separately approved new Editor-native product work is recorded here.
+One owner-authorized Editor-local outcome is recorded below
+([EDITOR-RM-001](ROADMAP.md#editor-rm-001--friendly-folder-and-file-browser)).
 The [roadmap](ROADMAP.md#local-outcome-admission) establishes admission and
 ownership for local outcomes and explicit contributions to shared outcomes.
 The documentation continuation creates this structure without inventing a
@@ -48,6 +49,27 @@ under the [closure policy](docs/governance/documentation-policy.md#scheduling-to
 The existing [D09 freeze](docs/governance/documentation-policy.md#evidence-and-boundaries)
 applies. This file authorizes no product implementation, product qualification,
 publication or activation.
+
+## Start screen folder browser (EDITOR-RM-001)
+
+Owner-authorized on 2026-11-17. Parent of every item:
+[EDITOR-RM-001](ROADMAP.md#editor-rm-001--friendly-folder-and-file-browser).
+Small items; no TASKLIST breakdown.
+
+<a id="editor-todo-001"></a>
+- `EDITOR-TODO-001` — **Status:** active — Browser core: file-system interface with a
+  portable implementation, a model without UI (navigation, history, path segments,
+  filter, natural sort, selection, refusal of existing names), and window-free tests.
+<a id="editor-todo-002"></a>
+- `EDITOR-TODO-002` — **Status:** active — ImGui view: toolbar, editable and clickable
+  path, places, sortable table, filter, keyboard, marks and errors.
+<a id="editor-todo-003"></a>
+- `EDITOR-TODO-003` — **Status:** planned — Adoption: start-screen pickers and the
+  asset chooser use the component; the temporary Downloads file-mode button is
+  added for trial and removed before closure.
+<a id="editor-todo-004"></a>
+- `EDITOR-TODO-004` — **Status:** planned — Verification and closure: build, tests,
+  history record under `docs/history/`, removal of completed entries.
 
 <!-- BEGIN inherited-contributions -->
 ## Inherited coordination contributions
