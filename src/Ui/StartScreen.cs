@@ -125,7 +125,7 @@ internal sealed class StartScreen(EditorSettings settings, EngineSdk? sdk = null
     private ProjectChoice? DrawSdk()
     {
         ImGui.TextWrapped("Choose the installed SDK folder containing sdk.json. Project folders remain portable.");
-        SdkBrowser!.Draw("sdk", 260);
+        SdkBrowser!.Draw("sdk", 300);
         if (ImGui.BeginCombo("Native configuration", SelectedConfiguration))
         {
             foreach (var value in new[] { "Release", "Debug" })
@@ -143,7 +143,7 @@ internal sealed class StartScreen(EditorSettings settings, EngineSdk? sdk = null
         ProjectChoice? choice = null;
         if (ImGui.Button("Use SDK"))
         {
-            try { choice = ConfirmSdk(SdkBrowser.Current); }
+            try { choice = ConfirmSdk(SdkBrowser.Target); }
             catch (EngineException error) { Error = error.Message; }
         }
         ImGui.SameLine();
@@ -234,7 +234,7 @@ internal sealed class StartScreen(EditorSettings settings, EngineSdk? sdk = null
         ImGui.TextUnformatted("New project");
         ImGui.Spacing();
         ImGui.TextUnformatted("Location");
-        Browser!.Draw("location", 260);
+        Browser!.Draw("location", 300);
         ImGui.Spacing();
         ImGui.TextUnformatted("Name");
         ImGui.SetNextItemWidth(-1);
@@ -243,7 +243,7 @@ internal sealed class StartScreen(EditorSettings settings, EngineSdk? sdk = null
         var enter = ImGui.IsItemDeactivated() && (ImGui.IsKeyPressed(ImGuiKey.Enter) || ImGui.IsKeyPressed(ImGuiKey.KeypadEnter));
 
         var name = NewName.Trim();
-        var folder = name.Length > 0 ? Path.Combine(Browser.Current, name) : null;
+        var folder = name.Length > 0 ? Path.Combine(Browser.Target, name) : null;
         var problem = name.Length == 0 ? "Give the project a name; its folder takes the same name."
             : name.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0 || name is "." or ".." ? "A folder cannot have that name."
             : Directory.Exists(folder) && Directory.EnumerateFileSystemEntries(folder!).Any() ? "That folder exists and is not empty."
@@ -265,22 +265,23 @@ internal sealed class StartScreen(EditorSettings settings, EngineSdk? sdk = null
     private ProjectChoice? DrawOpen()
     {
         ImGui.TextUnformatted("Open project");
-        ImGui.TextColored(DimColor, "Go into a folder that holds a .pixie file; project folders are marked.");
+        ImGui.TextColored(DimColor, "Select or enter a folder that holds a .pixie file; project folders are marked.");
         ImGui.Spacing();
         Browser!.Draw("open", 320);
 
         ImGui.Spacing();
         ProjectChoice? choice = null;
-        var isProject = Browser.CurrentIsProject;
+        var target = Browser.Target;
+        var isProject = FolderBrowser.IsProject(target);
         ImGui.BeginDisabled(!isProject);
         if (ImGui.Button("Open", new Vector2(120, 0)))
-            choice = new ProjectChoice(Browser.Current, Create: false);
+            choice = new ProjectChoice(target, Create: false);
         ImGui.EndDisabled();
         ImGui.SameLine();
         if (ImGui.Button("Back", new Vector2(120, 0)))
             Showing = Page.Home;
         ImGui.SameLine();
-        ImGui.TextColored(DimColor, isProject ? Path.GetFileName(Browser.Current) : "This folder is not a project.");
+        ImGui.TextColored(DimColor, isProject ? Path.GetFileName(target) : "This folder is not a project.");
         return choice;
     }
 }

@@ -13,16 +13,21 @@ as it is. The editor creates no version-control files.
 
 - **Start screen.** Without `--game` or `--project`, the editor opens on New project, Open project,
   and the recent projects (a click opens one; a missing one is marked, with Forget).
-  - **New project** takes a location, chosen in a folder picker drawn in ImGui (Up, the drives,
-    the folders inside, and a path to type and confirm with Enter), and a name; it makes the folder
-    `<location>/<name>`, which must not exist or be empty, and says why before Create can be
-    pressed. The project takes the folder's name, and its scene starts with one shape.
-    The picker also offers **New folder**: enter a name and choose **Create folder** (or press
-    Enter) to create and enter a child folder at the current location; **Cancel** leaves it alone.
-    Existing names are refused, and filesystem errors are shown in the picker. The same control
-    is available in the Open project and asset pickers.
-  - **Open project** takes a folder that holds a `.pixie` file; project folders are marked in the
-    picker, and Open waits until the current folder is one.
+  - **The folder picker** (New project, Open project, Choose SDK, and the asset chooser in file
+    mode) is drawn in ImGui: Back, Forward, Up, Refresh and New folder; the path as clickable
+    segments, or typed after **Edit path**, Ctrl+L or a click beside the segments, confirmed with
+    Enter; places on the left (Home, Desktop, Documents, Downloads, the drives or mounts); a filter;
+    and a table sorted by a click on Name or Modified (Size when files are listed), folders first,
+    numbers in natural order. A click selects, a double-click or Enter opens; arrows move the
+    selection, Backspace goes up and Alt+Left/Right go back and forward. Links are marked and
+    only followed when opened. **New folder** creates and enters a child of the current folder and
+    refuses an existing name (ignoring case where the file system does) or an invalid one.
+  - **New project** takes a location in the picker (the selected folder, or the current one) and a
+    name; it makes the folder `<location>/<name>`, which must not exist or be empty, and says why
+    before Create can be pressed. The project takes the folder's name, and its scene starts with
+    one shape.
+  - **Open project** takes a folder that holds a `.pixie` file: select a marked project folder or
+    enter it; Open waits until the target is a project.
 - A project runs on the shared engine's generic scene project, so it opens without a
   compiler. The recent projects and the place of the last one are kept in the user's settings
   (`PixieEditor/settings.json` under the application data folder), never in a project.
