@@ -164,7 +164,7 @@ internal sealed class StartScreen(EditorSettings settings, EngineSdk? sdk = null
         ProjectChoice? choice = null;
         if (ImGui.Button("Use SDK"))
         {
-            try { choice = ConfirmSdk(SdkBrowser.Browser.Current); }
+            try { choice = ConfirmSdk(SdkBrowser.Browser.Target); }
             catch (EngineException error) { Error = error.Message; }
         }
         ImGui.SameLine();
@@ -264,7 +264,7 @@ internal sealed class StartScreen(EditorSettings settings, EngineSdk? sdk = null
         var enter = ImGui.IsItemDeactivated() && (ImGui.IsKeyPressed(ImGuiKey.Enter) || ImGui.IsKeyPressed(ImGuiKey.KeypadEnter));
 
         var name = NewName.Trim();
-        var current = Browser.Browser.Current;
+        var current = Browser.Browser.Target;
         var folder = name.Length > 0 && current.Length > 0 ? Path.Combine(current, name) : null;
         var problem = current.Length == 0 ? "Choose a parent folder first."
             : name.Length == 0 ? "Give the project a name; its folder takes the same name."
@@ -294,16 +294,17 @@ internal sealed class StartScreen(EditorSettings settings, EngineSdk? sdk = null
 
         ImGui.Spacing();
         ProjectChoice? choice = null;
-        var isProject = Browser.Browser.CurrentIsProject;
+        var target = Browser.Browser.Target;
+        var isProject = FolderBrowser.IsProject(target);
         ImGui.BeginDisabled(!isProject);
         if (ImGui.Button("Open", new Vector2(120, 0)))
-            choice = new ProjectChoice(Browser.Browser.Current, Create: false);
+            choice = new ProjectChoice(target, Create: false);
         ImGui.EndDisabled();
         ImGui.SameLine();
         if (ImGui.Button("Back", new Vector2(120, 0)))
             Showing = Page.Home;
         ImGui.SameLine();
-        ImGui.TextColored(DimColor, isProject ? Path.GetFileName(Browser.Browser.Current) : "This folder is not a project.");
+        ImGui.TextColored(DimColor, isProject ? Path.GetFileName(target) : "This folder is not a project.");
         return choice;
     }
 

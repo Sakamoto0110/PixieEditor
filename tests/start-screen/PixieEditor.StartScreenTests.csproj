@@ -10,6 +10,10 @@
   <ItemGroup>
     <ProjectReference Include="../../src/PixieEditor.csproj" />
     <Compile Include="../../src/Editing/FolderBrowser.cs" Link="FolderBrowser.cs" />
+    <Compile Include="../../src/Ui/Browsing/IFileSystemView.cs" Link="Browsing/IFileSystemView.cs" />
+    <Compile Include="../../src/Ui/Browsing/BrowserOptions.cs" Link="Browsing/BrowserOptions.cs" />
+    <Compile Include="../../src/Ui/Browsing/FileBrowserModel.cs" Link="Browsing/FileBrowserModel.cs" />
+    <Compile Include="../../src/Ui/Browsing/LocalFileSystemView.cs" Link="Browsing/LocalFileSystemView.cs" />
   </ItemGroup>
   <Target Name="RefusePublish" BeforeTargets="PrepareForPublish;Publish">
     <Error Text="Start screen tests cannot be published." />

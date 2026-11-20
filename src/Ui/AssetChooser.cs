@@ -74,11 +74,23 @@ internal sealed class AssetChooser(string? projectFolder)
                 LastFolders[fileKind] = folder;
             chosen = file;
         }
+        if (Kind != null)
+        {
+            var selected = Browser.Browser.Model.Selected is { Kind: Browsing.EntryKind.File } entry ? entry.FullPath : null;
+            ImGui.BeginDisabled(selected == null);
+            if (ImGui.Button("Choose", new Vector2(120, 0)) && selected != null)
+            {
+                chosen = selected;
+                if (Path.GetDirectoryName(selected) is { } folder) LastFolders[Kind] = folder;
+            }
+            ImGui.EndDisabled();
+            ImGui.SameLine();
+        }
         if (Kind == null)
         {
-            ImGui.BeginDisabled(Browser.Browser.Current.Length == 0);
+            ImGui.BeginDisabled(Browser.Browser.Target.Length == 0);
             if (ImGui.Button("Import this folder"))
-                chosen = LastImportFolder = Browser.Browser.Current;
+                chosen = LastImportFolder = Browser.Browser.Target;
             ImGui.EndDisabled();
             ImGui.SameLine();
         }

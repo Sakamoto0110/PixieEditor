@@ -7,3 +7,4 @@ owning repositories.
 | Outcome | Record |
 | --- | --- |
 | Editor source contracts, architecture and reader guides | [Documentation refresh](documentation-refresh.md) |
+| EDITOR-RM-001 — friendly folder and file browser (2026-11-17) | [Closure record](editor-rm-001-folder-browser-2026-11-17.md) |
