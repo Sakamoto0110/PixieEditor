@@ -57,6 +57,18 @@ internal sealed class AssetChooser(string? projectFolder)
             close = true;
         }
 
+        // A file is chosen by double-click or Enter in the list, or by selecting it and pressing Choose.
+        var selectedFile = Browser.Model.Selected is { Kind: Browsing.EntryKind.File } entry ? entry.FullPath : null;
+        ImGui.BeginDisabled(selectedFile == null);
+        if (ImGui.Button("Choose", new Vector2(120, 0)) && selectedFile != null && !close)
+        {
+            if (Path.GetDirectoryName(selectedFile) is { } folder)
+                LastFolders[Kind] = folder;
+            Chosen?.Invoke(selectedFile);
+            close = true;
+        }
+        ImGui.EndDisabled();
+        ImGui.SameLine();
         if (ImGui.Button("Cancel", new Vector2(120, 0)) || ImGui.IsKeyPressed(ImGuiKey.Escape))
             close = true;
         if (close)

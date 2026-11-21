@@ -35,8 +35,9 @@ Editor build and release procedures remain in [development](docs/development.md)
 
 ## Local outcome admission
 
-No separately approved new Editor-native product outcome is introduced by this
-documentation continuation. Creating local planners establishes ownership and
+No separately approved new Editor-native product outcome was introduced by the
+documentation continuation; later owner-approved outcomes are listed under
+[Accepted local outcomes](#accepted-local-outcomes). Creating local planners establishes ownership and
 discovery; it does not authorize product implementation or qualify existing work.
 
 An accepted local outcome must state its rationale, scope and acceptance criteria.
@@ -48,6 +49,23 @@ scope, criteria or status.
 
 [TODO](TODO.md) owns accepted local execution and gates. TASKLIST is optional
 for large local items; no task breakdown is required merely by this file's presence.
+
+## Accepted local outcomes
+
+### EDITOR-RM-001 — Friendly folder and file browser
+
+**Work ID:** EDITOR-RM-001
+**Parent:** none
+**Authority:** direct owner instruction on 2026-11-17; no shared workspace parent
+**Status:** completed
+**Origin:** [EDITOR-PROPOSAL-001](docs/proposals/start-screen-folder-browser.md)
+**Child report:** EDITOR-RM-001-REPORT-1
+**Evidence:** [closure record](docs/history/editor-rm-001-folder-browser-2026-11-17.md)
+
+A reusable, interface-based folder and file browser used by the start screen's
+pickers and the asset chooser. The closure record keeps the original rationale,
+scope and acceptance criteria, each criterion's disposition (keyboard behaviour
+awaits an interactive owner check) and the planning baseline.
 
 ## Preserved constraints
 

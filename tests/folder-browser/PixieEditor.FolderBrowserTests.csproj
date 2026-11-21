@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Window-free tests of the browser model: no ImGui, GLFW, OpenGL or Engine SDK needed. -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="../../src/Ui/Browsing/IFileSystemView.cs" Link="Browsing/IFileSystemView.cs" />
+    <Compile Include="../../src/Ui/Browsing/BrowserOptions.cs" Link="Browsing/BrowserOptions.cs" />
+    <Compile Include="../../src/Ui/Browsing/FileBrowserModel.cs" Link="Browsing/FileBrowserModel.cs" />
+    <Compile Include="../../src/Ui/Browsing/LocalFileSystemView.cs" Link="Browsing/LocalFileSystemView.cs" />
+  </ItemGroup>
+  <Target Name="RefusePublish" BeforeTargets="PrepareForPublish;Publish">
+    <Error Text="Folder browser tests cannot be published." />
+  </Target>
+</Project>

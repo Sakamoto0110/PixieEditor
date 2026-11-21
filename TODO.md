@@ -22,7 +22,9 @@
 
 ## Current local scope
 
-No separately approved new Editor-native product work is recorded here.
+No Editor-local work is active. The completed EDITOR-TODO-001..004 group of
+[EDITOR-RM-001](ROADMAP.md#editor-rm-001--friendly-folder-and-file-browser) is preserved in its
+[closure record](docs/history/editor-rm-001-folder-browser-2026-11-17.md).
 The [roadmap](ROADMAP.md#local-outcome-admission) establishes admission and
 ownership for local outcomes and explicit contributions to shared outcomes.
 The documentation continuation creates this structure without inventing a
