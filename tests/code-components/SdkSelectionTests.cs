@@ -121,7 +121,8 @@ internal static class SdkSelectionTests
                     Directory.CreateDirectory(Path.GetDirectoryName(absolute)!);
                     File.WriteAllText(absolute, Path.GetFileName(path) switch
                     {
-                        "CMakeLists.txt.in" => "# Synthetic sdk-v1\npixie_game(@PIXIE_ID@ @PIXIE_GENERATED_CANDIDATE_OPTION@)\n# BEGIN PIXIE COMPONENT SOURCES (managed)\npixie_project_components()\n# END PIXIE COMPONENT SOURCES (managed)\n",
+                        // Same layout as the installed SDK template: the option slot is on its own indented line before SOURCES.
+                        "CMakeLists.txt.in" => "# Synthetic sdk-v1\npixie_game(@PIXIE_ID@\n    @PIXIE_GENERATED_CANDIDATE_OPTION@\n    SOURCES src/@PIXIE_ID@Project.cpp\n)\n# BEGIN PIXIE COMPONENT SOURCES (managed)\npixie_project_components()\n# END PIXIE COMPONENT SOURCES (managed)\n",
                         "Component.hpp.in" => componentHeader,
                         "Component.cpp.in" => componentSource,
                         "versions.json" => JsonSerializer.Serialize(new { schemaVersion = 1, hashPolicy = "utf8-lf",
@@ -423,7 +424,9 @@ internal static class SdkSelectionTests
         Refuses(() => ProjectExportJob.CreateLaunch(generatedSdk, codeProject, outPath, () => null, temp), "code-export-refuses-missing-discovered-cmake");
         Refuses(() => ProjectExportJob.CreateLaunch(generatedSdk, codeProject, outPath, () => "cmake.exe", temp), "code-export-refuses-relative-cmake");
         foreach (var assetOptions in new[] { "ASSETS assets/inter-license.txt", "ASSETS assets/readme.txt\n    \"assets/font notices.txt\"",
-            "CANDIDATE_AUTHORING\n    ASSETS assets/readme.txt" })
+            "CANDIDATE_AUTHORING\n    ASSETS assets/readme.txt",
+            // The Weapons-Lab project: four fonts over two lines, the continuation indented deeper.
+            "ASSETS assets/nk57-monospace-regular.ttf assets/nk57-monospace-bold.ttf\n        assets/nk57-monospace-italic.ttf assets/nk57-monospace-bold-italic.ttf" })
         {
             var assetCmake = File.ReadAllText(generatedSdk.Generation!.CMakeTemplate).Replace("@PIXIE_ID@", "TestGame")
                 .Replace("@PIXIE_GENERATED_CANDIDATE_OPTION@", assetOptions);
