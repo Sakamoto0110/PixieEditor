@@ -112,10 +112,34 @@ internal sealed class ProjectBuild : IDisposable
         var assets = Regex.Match(cmake, $@"(?<=\npixie_game\({id}\n)    ASSETS(?: assets/(?:[A-Za-z0-9_-][A-Za-z0-9_.-]*/)*[A-Za-z0-9_-][A-Za-z0-9_.-]*)+(?=\n)");
         if (assets.Success)
             cmake = cmake.Remove(assets.Index, assets.Length).Insert(assets.Index, "    ");
-        if (cmake != template.Replace("@PIXIE_GENERATED_CANDIDATE_OPTION@", "") &&
-            cmake != template.Replace("@PIXIE_GENERATED_CANDIDATE_OPTION@", "CANDIDATE_AUTHORING"))
+        if (!MatchesCMakeTemplate(cmake, template))
             throw new EngineException("The project's CMake does not match its installed sdk-v1 template. Its custom wiring was preserved.");
         return id + "-module";
+    }
+
+    // ASSETS is an SDK-supported export input. Admit literal portable paths in the
+    // generated option slot while retaining ownership checks on the rest of CMake.
+    private static bool MatchesCMakeTemplate(string cmake, string template)
+    {
+        const string slot = "@PIXIE_GENERATED_CANDIDATE_OPTION@";
+        if (cmake == template.Replace(slot, "") || cmake == template.Replace(slot, "CANDIDATE_AUTHORING")) return true;
+        var position = template.IndexOf(slot, StringComparison.Ordinal);
+        if (position < 0 || template.IndexOf(slot, position + slot.Length, StringComparison.Ordinal) >= 0) return false;
+        var prefix = template[..position];
+        var suffix = template[(position + slot.Length)..];
+        if (cmake.Length < prefix.Length + suffix.Length || !cmake.StartsWith(prefix, StringComparison.Ordinal) ||
+            !cmake.EndsWith(suffix, StringComparison.Ordinal)) return false;
+        var options = cmake[prefix.Length..(cmake.Length - suffix.Length)];
+        var declaration = Regex.Match(options,
+            "\\A(?:CANDIDATE_AUTHORING\\s+)?ASSETS(?<paths>(?:\\s+(?:\"[A-Za-z0-9_ ./-]+\"|[A-Za-z0-9_./-]+))+)\\s*\\z",
+            RegexOptions.CultureInvariant);
+        if (!declaration.Success) return false;
+        foreach (Match token in Regex.Matches(declaration.Groups["paths"].Value, "\"[^\"]+\"|\\S+", RegexOptions.CultureInvariant))
+        {
+            var path = token.Value.Trim('"');
+            if (path.Split('/').Any(part => string.IsNullOrWhiteSpace(part) || part is "." or "..")) return false;
+        }
+        return true;
     }
 
     private static string CacheKey(string folder, EngineSdk sdk, string role) => EngineSdk.HashBytes(JsonSerializer.SerializeToUtf8Bytes(new[] {

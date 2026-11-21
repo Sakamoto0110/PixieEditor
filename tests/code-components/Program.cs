@@ -36,6 +36,21 @@ internal static class Program
         if (args.Length == 2 && args[0] == "--sdk-selection") return SdkSelectionTests.Run(args[1]);
         if (args.Length == 5 && args[0] == "--module-reload")
             return ModuleReloadTests.Run(EngineSdk.Load(args[1], args[2], args[3], "fixture"), args[4]);
+        if (args.Length == 5 && args[0] == "--installed-project-build")
+        {
+            var sdk = EngineSdk.Load(args[1], configuration: args[3], expectedManifestSha256: args[4]);
+            var plan = ProjectBuild.Prepare(args[2], sdk);
+            var cmakePath = Path.Combine(plan.Folder, "CMakeLists.txt");
+            var cmakeBefore = EngineSdk.HashFile(cmakePath);
+            using var job = new ProjectBuild(plan);
+            job.Start();
+            var timeout = Stopwatch.StartNew();
+            while (!job.Finished && timeout.Elapsed < TimeSpan.FromMinutes(5)) Thread.Sleep(25);
+            if (!job.Finished || !job.Succeeded) throw new InvalidOperationException(job.Problem ?? "Installed project build timed out.");
+            Check(EngineSdk.HashFile(cmakePath) == cmakeBefore, "installed-project-build-preserves-cmake");
+            Console.WriteLine(JsonSerializer.Serialize(new { plan.Cache, plan.Target, plan.Library, sdk.Id, sdk.BuildId }));
+            return 0;
+        }
         if (args.Length == 7 && args[0] is "--process-reopen" or "--module-process-reopen")
         {
             var sdk = EngineSdk.Load(args[3], args[4], args[5], "fixture", expectedManifestSha256: args[6]);
