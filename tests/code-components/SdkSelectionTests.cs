@@ -220,7 +220,11 @@ internal static class SdkSelectionTests
             Refuses(() => f.Load(), "identity-" + field);
         }
         var privateSdk = new Fixture(Path.Combine(work, "private-sdk"), "f", "a", "local-private", "local-development"); privateSdk.Write();
+#if PIXIE_DEVELOPMENT
         Check(privateSdk.Load().CapabilityBits == 7, "explicit-private-profile-has-local-bits");
+#else
+        Refuses(() => privateSdk.Load(), "public-editor-refuses-private-sdk");
+#endif
         Broken("public-native-automation", f => { f.Identity["capabilities"]!["nativeAutomation"] = true; f.Write(); });
         var runtime = JsonNode.Parse(sdk.Identity.GetRawText())!.AsObject();
         runtime["productVersion"] = "99.99.99.99"; runtime["files"] = new JsonArray();
@@ -316,7 +320,11 @@ internal static class SdkSelectionTests
         Refuses(() => EditorLaunch.SiblingModule(Path.Combine(work, "first-module.dll"), "../other"), "sibling-path-escape-refused");
         Refuses(() => EditorLaunch.Create(sdk, ["--sdk", b.Root], processPath: editorPath), "action-cannot-override-immutable-selection");
 
+#if PIXIE_DEVELOPMENT
         Check(sdk.Exporter == null && privateSdk.Load().Exporter == null, "unadvertised-public-and-private-sdk-retain-authoring");
+#else
+        Check(sdk.Exporter == null, "unadvertised-public-sdk-retains-authoring");
+#endif
         var outPath = Path.Combine(work, "Export output Å");
         File.WriteAllText(Path.Combine(work, "pixie-export.exe"), "Unselected same-name fixture");
         Refuses(() => ProjectExportJob.CreateLaunch(sdk, projectPath, outPath), "unadvertised-sdk-never-discovers-exporter");
@@ -414,6 +422,25 @@ internal static class SdkSelectionTests
             "code-export-passes-discovered-cmake-and-separate-owned-cache");
         Refuses(() => ProjectExportJob.CreateLaunch(generatedSdk, codeProject, outPath, () => null, temp), "code-export-refuses-missing-discovered-cmake");
         Refuses(() => ProjectExportJob.CreateLaunch(generatedSdk, codeProject, outPath, () => "cmake.exe", temp), "code-export-refuses-relative-cmake");
+        foreach (var assetOptions in new[] { "ASSETS assets/inter-license.txt", "ASSETS assets/readme.txt\n    \"assets/font notices.txt\"",
+            "CANDIDATE_AUTHORING\n    ASSETS assets/readme.txt" })
+        {
+            var assetCmake = File.ReadAllText(generatedSdk.Generation!.CMakeTemplate).Replace("@PIXIE_ID@", "TestGame")
+                .Replace("@PIXIE_GENERATED_CANDIDATE_OPTION@", assetOptions);
+            File.WriteAllText(cmakelists, assetCmake);
+            var assetBefore = EngineSdk.HashFile(cmakelists);
+            Check(ProjectBuild.Prepare(codeProject, generatedSdk, () => cmake, temp).Target == "TestGame-module" &&
+                ProjectExportJob.CreateLaunch(generatedSdk, codeProject, outPath, () => cmake, temp).Environment["PIXIE_EXPORT_CMAKE"] == cmake &&
+                EngineSdk.HashFile(cmakelists) == assetBefore, "installed-build-and-export-preserve-literal-assets-" + assetOptions);
+        }
+        foreach (var assetOptions in new[] { "ASSETS ../outside.txt", "ASSETS /absolute.txt", "ASSETS C:/absolute.txt",
+            "ASSETS ${UNREVIEWED_INPUT}", "ASSETS assets/notice.txt)\ninclude(foreign)\npixie_game(TestGame" })
+        {
+            File.WriteAllText(cmakelists, File.ReadAllText(generatedSdk.Generation!.CMakeTemplate).Replace("@PIXIE_ID@", "TestGame")
+                .Replace("@PIXIE_GENERATED_CANDIDATE_OPTION@", assetOptions));
+            Refuses(() => ProjectBuild.Prepare(codeProject, generatedSdk, () => cmake, temp), "installed-build-refuses-nonportable-or-executable-assets-" + assetOptions);
+        }
+        File.WriteAllText(cmakelists, originalCmake);
         File.AppendAllText(cmakelists, "# Unfamiliar CMake\n"); var unfamiliar = EngineSdk.HashFile(cmakelists);
         Refuses(() => ProjectBuild.Prepare(codeProject, generatedSdk, () => cmake, temp), "installed-build-refuses-unfamiliar-cmake");
         Check(EngineSdk.HashFile(cmakelists) == unfamiliar && !Directory.Exists(plan.Cache), "unfamiliar-cmake-refusal-preserves-preimage-and-cache");
