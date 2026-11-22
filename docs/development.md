@@ -76,6 +76,28 @@ catalog SHA-256 values. The verification artifact is retained for 30 days.
 
 ## Local Editor data and test inputs
 
+### Compatible project SDK updates
+
+SDK package hashes identify exact build inputs; they do not by themselves define
+source-project compatibility. SDK 0.4 candidates declare an inventoried
+`projectCompatibility` policy. The Editor admits a supported `projectContract`
+or an explicitly mapped legacy hash-only requirement, preserving the original
+`.pixie-code/sdk.json`. An optional `exactSdk: true` retains exact selection for
+reproducible qualification. Unknown predecessors remain unverified; version
+numbers never imply compatibility automatically.
+
+The Engine owns the policy consumed by CMake, the Editor and public export.
+All other project requirements still apply. Native runtime/module identity stays
+exact: rebuild project source into the selected SDK's cache instead of loading
+an old DLL. A new package must qualify unchanged predecessor projects, rebuild,
+reload and export before its compatibility claim is published. VAW baseline
+approval remains a separate operation.
+
+The focused SDK selection suite covers known predecessors, different hashes
+sharing a supported contract, exact locks, unknown and unsupported requirements,
+and preservation of project bytes. Synthetic admission checks do not establish
+native ABI or release qualification.
+
 The dock layout lives under the PixieEditor application-data directory.
 Use --import-layout with an absolute legacy file path to import it when no
 current layout exists. Development tests can supply an isolated --layout path.
