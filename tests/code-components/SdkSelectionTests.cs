@@ -247,6 +247,39 @@ internal static class SdkSelectionTests
         Refuses(() => SdkRequirements.Adopt(project, sdkB), "existing-requirement-never-overwritten");
         Check(EngineSdk.HashFile(requirement) == requirementHash, "requirement-refusal-preserves-preimage");
         var expectedRequirement = File.ReadAllText(requirement);
+        var successor = new Fixture(Path.Combine(work, "compatible-successor"), "e", "f"); successor.Write();
+        successor.Catalog(catalog =>
+        {
+            var policy = new JsonObject
+            {
+                ["schemaVersion"] = 1, ["currentContract"] = "pixie.project/2",
+                ["supportedContracts"] = new JsonArray("pixie.project/1", "pixie.project/2"),
+                ["legacyRequirements"] = new JsonObject { [sdk.Id] = "pixie.project/1" }
+            };
+            const string relative = "cmake/project-compatibility.json";
+            var path = Path.Combine(successor.Root, relative); Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+            File.WriteAllText(path, policy.ToJsonString());
+            catalog["files"]!.AsArray().Add(new JsonObject { ["path"] = relative, ["size"] = new FileInfo(path).Length,
+                ["sha256"] = EngineSdk.HashFile(path), ["role"] = "sdk-build-input" });
+            catalog["projectCompatibility"] = policy;
+        });
+        var compatibleSdk = EngineSdk.Load(successor.Root);
+        Check(SdkRequirements.Validate(project, compatibleSdk), "legacy-project-accepts-declared-successor-with-new-hash");
+        Check(EngineSdk.HashFile(requirement) == requirementHash, "compatible-successor-preserves-original-requirement");
+        var compatibleRequirement = JsonNode.Parse(expectedRequirement)!.AsObject();
+        compatibleRequirement["exactSdk"] = true; File.WriteAllText(requirement, compatibleRequirement.ToJsonString());
+        Refuses(() => SdkRequirements.Validate(project, compatibleSdk), "explicit-exact-sdk-lock-refuses-successor");
+        compatibleRequirement["exactSdk"] = false;
+        compatibleRequirement["sdkId"] = new string('9', 64);
+        compatibleRequirement["projectContract"] = "pixie.project/2";
+        File.WriteAllText(requirement, compatibleRequirement.ToJsonString());
+        Check(SdkRequirements.Validate(project, compatibleSdk), "contract-acceptance-does-not-enumerate-future-sdk-hashes");
+        compatibleRequirement["projectContract"] = "pixie.project/3";
+        File.WriteAllText(requirement, compatibleRequirement.ToJsonString());
+        Refuses(() => SdkRequirements.Validate(project, compatibleSdk), "unsupported-project-contract-refused");
+        compatibleRequirement.Remove("projectContract"); File.WriteAllText(requirement, compatibleRequirement.ToJsonString());
+        Refuses(() => SdkRequirements.Validate(project, compatibleSdk), "unknown-legacy-identity-is-unverified");
+        File.WriteAllText(requirement, expectedRequirement);
         var data = JsonNode.Parse(File.ReadAllText(requirement))!.AsObject(); data["installationPath"] = a.Root;
         File.WriteAllText(requirement, data.ToJsonString());
         Refuses(() => SdkRequirements.Validate(project, sdk), "machine-path-in-project-requirement-refused");

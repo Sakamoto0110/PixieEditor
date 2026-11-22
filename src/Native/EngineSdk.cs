@@ -30,6 +30,7 @@ internal sealed class EngineSdk
     public string RuntimeSha256 { get; }
     internal Payload? Glfw { get; }
     public JsonElement Identity { get; }
+    internal JsonElement? ProjectCompatibility { get; }
     public ulong CapabilityBits { get; }
     internal ExportTool? Exporter { get; }
     internal ProjectSupport? Generation { get; }
@@ -43,6 +44,7 @@ internal sealed class EngineSdk
         DistributionClass = Text(manifest, "distributionClass"); Profile = Text(profile, "profile");
         Configuration = Text(profile, "configuration"); ProfileSha256 = profileHash; Origin = origin;
         Identity = profile.Clone();
+        ProjectCompatibility = manifest.TryGetProperty("projectCompatibility", out var compatibility) ? compatibility.Clone() : null;
         var runtime = profile.GetProperty("runtime");
         RuntimePath = CheckedPath(root, Text(runtime, "path")); RuntimeSha256 = Text(runtime, "sha256");
         CapabilityBits = Bits(profile.GetProperty("capabilities"));
@@ -111,6 +113,23 @@ internal sealed class EngineSdk
                 if (relative != "sdk.json" && !files.ContainsKey(relative))
                     throw new EngineException($"The SDK contains an undeclared payload: {relative}");
             }
+        if (manifest.TryGetProperty("projectCompatibility", out var policy))
+        {
+            const string policyPath = "cmake/project-compatibility.json";
+            if (!files.ContainsKey(policyPath)) throw new EngineException("The SDK compatibility policy must be inventoried.");
+            using var sourcePolicy = Parse(ReadBytes(CheckedPath(root, policyPath), 64 * 1024));
+            if (!JsonElement.DeepEquals(policy, sourcePolicy.RootElement))
+                throw new EngineException("The SDK compatibility policy differs from its inventoried source.");
+            Schema(policy);
+            var supported = policy.GetProperty("supportedContracts").EnumerateArray().Select(x => x.GetString()).ToArray();
+            if (supported.Length == 0 || supported.Any(x => x == null || !Regex.IsMatch(x, @"^pixie\.project/[1-9][0-9]*$")) ||
+                supported.Distinct(StringComparer.Ordinal).Count() != supported.Length ||
+                !supported.Contains(Text(policy, "currentContract"), StringComparer.Ordinal))
+                throw new EngineException("Invalid supported project contracts.");
+            foreach (var legacy in policy.GetProperty("legacyRequirements").EnumerateObject())
+                if (!Regex.IsMatch(legacy.Name, "^[0-9a-f]{64}$") || !supported.Contains(legacy.Value.GetString(), StringComparer.Ordinal))
+                    throw new EngineException("Invalid legacy project compatibility requirement.");
+        }
         JsonElement? chosen = null, shipping = null; string? chosenHash = null;
         var tuples = new HashSet<string>(StringComparer.Ordinal);
         foreach (var entry in manifest.GetProperty("profiles").EnumerateArray())

@@ -6,7 +6,7 @@ namespace PixieEditor.Native;
 internal static class SdkRequirements
 {
     internal const string RelativePath = ".pixie-code/sdk.json";
-    private static readonly HashSet<string> Allowed = ["schemaVersion", "sdkId", "profile", "platform", "architecture", "compilerVersion", "cpuFeatures", "requiredCapabilities"];
+    private static readonly HashSet<string> Allowed = ["schemaVersion", "sdkId", "projectContract", "exactSdk", "profile", "platform", "architecture", "compilerVersion", "cpuFeatures", "requiredCapabilities"];
 
     internal static bool Validate(string folder, EngineSdk sdk)
     {
@@ -19,7 +19,10 @@ internal static class SdkRequirements
             EngineSdk.Schema(requirement); EngineSdk.HashText(requirement, "sdkId");
             if (requirement.EnumerateObject().Any(x => !Allowed.Contains(x.Name)))
                 throw new EngineException("Portable SDK requirements cannot contain installation paths or unknown settings.");
-            foreach (var field in new[] { "sdkId", "profile", "platform", "architecture", "compilerVersion" })
+            if (!AcceptsProject(requirement, sdk))
+                throw new EngineException("Project SDK compatibility is unverified or excluded by exactSdk. " +
+                    "Choose the original SDK or explicitly adopt a qualified successor.");
+            foreach (var field in new[] { "profile", "platform", "architecture", "compilerVersion" })
                 if (!JsonElement.DeepEquals(requirement.GetProperty(field), sdk.Identity.GetProperty(field)))
                     throw new EngineException($"This project requires a different Engine SDK ({field}). " +
                         $"Required: {requirement.GetProperty(field).GetString()}; selected: {sdk.Identity.GetProperty(field).GetString()} " +
@@ -44,6 +47,23 @@ internal static class SdkRequirements
         { throw new EngineException($"Cannot read this project's SDK requirements: {error.Message}"); }
     }
 
+    // The catalog owns directional source compatibility; native build identity stays exact.
+    internal static bool AcceptsProject(JsonElement requirement, EngineSdk sdk)
+    {
+        var exact = requirement.TryGetProperty("exactSdk", out var locked) && locked.GetBoolean();
+        var original = EngineSdk.Text(requirement, "sdkId");
+        if (original == sdk.Id) return true;
+        if (exact || sdk.ProjectCompatibility is not { } policy) return false;
+        if (policy.GetProperty("schemaVersion").GetInt32() != 1)
+            throw new EngineException("Unsupported SDK project compatibility policy.");
+        string? contract;
+        if (requirement.TryGetProperty("projectContract", out var declared)) contract = declared.GetString();
+        else if (policy.GetProperty("legacyRequirements").TryGetProperty(original, out var legacy)) contract = legacy.GetString();
+        else return false;
+        if (string.IsNullOrWhiteSpace(contract)) return false;
+        return policy.GetProperty("supportedContracts").EnumerateArray().Any(x => x.GetString() == contract);
+    }
+
     // The caller must explicitly request adoption; unknown or existing requirements are never overwritten.
     internal static void Adopt(string folder, EngineSdk sdk)
     {
@@ -53,6 +73,8 @@ internal static class SdkRequirements
         var data = new Dictionary<string, JsonElement>();
         foreach (var field in new[] { "schemaVersion", "sdkId", "profile", "platform", "architecture", "compilerVersion", "cpuFeatures" })
             data[field] = sdk.Identity.GetProperty(field);
+        if (sdk.ProjectCompatibility is { } compatibility)
+            data["projectContract"] = compatibility.GetProperty("currentContract");
         var temporary = path + "." + Guid.NewGuid().ToString("N") + ".tmp";
         try
         {
